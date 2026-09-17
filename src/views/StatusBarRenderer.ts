@@ -15,24 +15,56 @@ export const PROVIDER_SHORT_NAMES: Record<string, string> = {
   groq: 'Groq',
 };
 
+export const PROVIDER_PRIORITIES: Record<string, number> = {
+  antigravity: 110,
+  codex: 109,
+  claude: 108,
+  cursor: 107,
+  copilot: 106,
+  windsurf: 105,
+  deepseek: 104,
+  mistral: 103,
+  ollama: 102,
+  openrouter: 101,
+  groq: 100,
+};
+
 export type StatusBarStyle = 'compact' | 'blocks' | 'percent' | 'minimal';
 
-/** Compact 5-block micro meter: █░░░░ 21% */
+/** Compact 5-block micro meter: █░░░░ */
 export function renderMicroBlocks(pct: number): string {
   const total = 5;
   const filled = Math.round(Math.min(100, Math.max(0, pct)) / 20);
   return '█'.repeat(filled) + '░'.repeat(total - filled);
 }
 
-/** Render progress in percent style: 45% */
-export function renderProgressPercent(pct: number): string {
-  return `${Math.round(pct)}%`;
+/** Render countdown string from ISO date (e.g. "2h 15m", "4d 12h") */
+export function formatResetCountdown(resetsAt?: string | null): string | null {
+  if (!resetsAt) return null;
+  const target = new Date(resetsAt).getTime();
+  if (isNaN(target)) return null;
+
+  const diffMs = target - Date.now();
+  if (diffMs <= 0) return 'resets soon';
+
+  const totalMinutes = Math.floor(diffMs / 60_000);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  }
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m`;
+  }
+  return '< 1m';
 }
 
-/**
- * Extract the primary usage percentage for a provider.
- * For Antigravity, prioritizes Gemini or primary line.
- */
+/** Extract primary percent for a provider */
 export function getPrimaryPercent(result: ProviderResult): number | undefined {
   const progressLines = result.lines.filter((l) => l.type === 'progress');
   if (progressLines.length === 0) return undefined;
@@ -55,100 +87,158 @@ export function getPrimaryPercent(result: ProviderResult): number | undefined {
       : 0;
 }
 
-/**
- * Render compact status bar text for all active providers.
- */
-export function renderMultiStatusBarText(
-  activeResults: ProviderResult[],
-  style: StatusBarStyle = 'compact',
-): string {
-  if (activeResults.length === 0) {
-    return '$(telescope) TokenLens';
-  }
-
-  const parts = activeResults.map((result) => {
-    const shortName = PROVIDER_SHORT_NAMES[result.id] ?? result.name.split(' ')[0];
-    const pct = getPrimaryPercent(result);
-
-    if (pct !== undefined) {
-      const rounded = Math.round(pct);
-      if (style === 'blocks') {
-        return `${shortName} ${renderMicroBlocks(rounded)} ${rounded}%`;
-      }
-      return `${shortName} ${rounded}%`;
-    }
-
-    // Badge or state fallback
-    const badge = result.lines.find((l) => l.type === 'badge');
-    if (badge && badge.type === 'badge') {
-      return `${shortName} ✓`;
-    }
-
-    return shortName;
-  });
-
-  return `$(telescope) ${parts.join(' · ')}`;
+/** Get goal circle indicator based on status and percent */
+export function getCircleIcon(pct?: number, hasError?: boolean): string {
+  if (hasError) return '$(circle-slash)';
+  if (pct === undefined) return '$(circle-filled)';
+  if (pct >= 95) return '$(circle-filled)';
+  if (pct >= 80) return '$(circle-filled)';
+  return '$(circle-filled)';
 }
 
 /**
- * Get status bar background color based on usage percent and budget alert level.
+ * Render single provider status bar label with circle indicator:
+ * e.g. "$(circle-filled) AG 45%", "$(circle-filled) Codex 21%", "$(circle-filled) Copilot ✓"
  */
-export function getStatusBarColor(
-  results: ProviderResult[],
-  alertLevel: AlertLevel,
-): vscode.ThemeColor | undefined {
-  if (alertLevel === 'panic') {
-    return new vscode.ThemeColor('statusBarItem.errorBackground');
+export function renderProviderStatusBarText(
+  result: ProviderResult,
+  style: StatusBarStyle = 'compact',
+): string {
+  const shortName = PROVIDER_SHORT_NAMES[result.id] ?? result.name.split(' ')[0];
+  if (result.error) {
+    return `$(circle-slash) ${shortName}`;
   }
-  if (alertLevel === 'critical' || alertLevel === 'warning') {
+
+  const pct = getPrimaryPercent(result);
+  const circle = getCircleIcon(pct, !!result.error);
+
+  if (pct !== undefined) {
+    const rounded = Math.round(pct);
+    if (style === 'blocks') {
+      return `${circle} ${shortName} ${renderMicroBlocks(rounded)} ${rounded}%`;
+    }
+    return `${circle} ${shortName} ${rounded}%`;
+  }
+
+  const badge = result.lines.find((l) => l.type === 'badge');
+  if (badge && badge.type === 'badge') {
+    return `${circle} ${shortName} ✓`;
+  }
+
+  return `${circle} ${shortName}`;
+}
+
+/** Status bar color for a single provider */
+export function getProviderStatusBarColor(
+  result: ProviderResult,
+  alertLevel?: AlertLevel,
+): vscode.ThemeColor | undefined {
+  if (result.error) {
     return new vscode.ThemeColor('statusBarItem.warningBackground');
   }
 
-  // Only turn warning/error if an in-use provider is genuinely exhausted (>= 95%)
-  for (const r of results) {
-    const pct = getPrimaryPercent(r);
-    if (pct !== undefined && pct >= 98) {
-      return new vscode.ThemeColor('statusBarItem.errorBackground');
-    }
-    if (pct !== undefined && pct >= 92) {
-      return new vscode.ThemeColor('statusBarItem.warningBackground');
-    }
+  const pct = getPrimaryPercent(result);
+  if (pct !== undefined && pct >= 98) {
+    return new vscode.ThemeColor('statusBarItem.errorBackground');
+  }
+  if (pct !== undefined && pct >= 90) {
+    return new vscode.ThemeColor('statusBarItem.warningBackground');
+  }
+
+  if (alertLevel === 'panic') {
+    return new vscode.ThemeColor('statusBarItem.errorBackground');
+  }
+  if (alertLevel === 'critical') {
+    return new vscode.ThemeColor('statusBarItem.warningBackground');
   }
 
   return undefined;
 }
 
-/**
- * Build a rich markdown tooltip for the status bar item.
- */
-export function renderTooltip(
-  allResults: ProviderResult[],
+/** Build rich markdown tooltip for a specific provider */
+export function renderProviderTooltip(
+  result: ProviderResult,
+  budget?: BudgetState,
+): vscode.MarkdownString {
+  const md = new vscode.MarkdownString('', true);
+  md.isTrusted = true;
+  md.supportThemeIcons = true;
+  md.supportHtml = true;
+
+  const planBadge = result.plan ? ` *(${result.plan})*` : '';
+  md.appendMarkdown(`### 🔭 TokenLens — **${result.name}**${planBadge}\n\n`);
+
+  if (result.error) {
+    md.appendMarkdown(`⚠️ **Status:** ${result.error}\n\n`);
+  }
+
+  for (const line of result.lines) {
+    if (line.type === 'progress') {
+      const pct =
+        line.format.kind === 'percent'
+          ? line.used
+          : line.limit > 0
+            ? (line.used / line.limit) * 100
+            : 0;
+      const bar = renderMicroBlocks(pct);
+      const countdown = formatResetCountdown(line.resetsAt);
+      const resetInfo = countdown
+        ? ` *(⏱️ ${line.resetPeriodLabel ?? 'Reset'}: in ${countdown})*`
+        : line.resetPeriodLabel
+          ? ` *(${line.resetPeriodLabel})*`
+          : '';
+
+      md.appendMarkdown(`- **${line.label}:** \`${bar}\` **${Math.round(pct)}%**${resetInfo}\n`);
+    } else if (line.type === 'text') {
+      md.appendMarkdown(`- **${line.label}:** ${line.value}\n`);
+    } else if (line.type === 'badge') {
+      md.appendMarkdown(`- **${line.label}:** \`${line.text}\`\n`);
+    }
+  }
+
+  // Budget info
+  if (budget) {
+    md.appendMarkdown('\n---\n\n');
+    const alertIcon =
+      budget.alertLevel === 'panic'
+        ? '🚨'
+        : budget.alertLevel === 'critical'
+          ? '🔴'
+          : budget.alertLevel === 'warning'
+            ? '⚠️'
+            : '✅';
+    md.appendMarkdown(
+      `💰 **Monthly Budget:** \$${budget.currentSpend.toFixed(2)} / \$${budget.monthly.toFixed(2)} ${alertIcon} (${budget.percent}%)\n`,
+    );
+  }
+
+  // Action links
+  md.appendMarkdown('\n---\n\n');
+  md.appendMarkdown(
+    `[$(graph) Open Dashboard](command:tokenlens.openDashboard)  •  [$(refresh) Refresh](command:tokenlens.refresh)  •  [$(gear) Settings](command:tokenlens.openSettings)\n`,
+  );
+
+  return md;
+}
+
+/** Render tooltip when multiple or all providers are shown */
+export function renderOverviewTooltip(
+  results: ProviderResult[],
   budget: BudgetState,
 ): vscode.MarkdownString {
   const md = new vscode.MarkdownString('', true);
   md.isTrusted = true;
   md.supportThemeIcons = true;
+  md.supportHtml = true;
 
   md.appendMarkdown(`### 🔭 TokenLens — AI Quotas & Usage\n\n`);
 
-  const active = allResults.filter(
-    (r) =>
-      !r.error &&
-      r.lines.some(
-        (l) =>
-          l.type === 'progress' ||
-          (l.type === 'badge' &&
-            !l.text.toLowerCase().includes('idle') &&
-            !l.text.toLowerCase().includes('not installed')),
-      ),
-  );
-
-  if (active.length === 0) {
+  if (results.length === 0) {
     md.appendMarkdown('No active AI sessions detected.\n\n');
   } else {
-    for (const result of active) {
+    for (const result of results) {
       const planBadge = result.plan ? ` *(${result.plan})*` : '';
-      md.appendMarkdown(`**${result.name}**${planBadge}\n\n`);
+      md.appendMarkdown(`**${result.name}**${planBadge}\n`);
 
       for (const line of result.lines) {
         if (line.type === 'progress') {
@@ -159,36 +249,21 @@ export function renderTooltip(
                 ? (line.used / line.limit) * 100
                 : 0;
           const bar = renderMicroBlocks(pct);
-          const resetInfo = line.resetPeriodLabel ? ` *(⏱️ ${line.resetPeriodLabel})*` : '';
+          const countdown = formatResetCountdown(line.resetsAt);
+          const resetInfo = countdown ? ` *(⏱️ ${countdown})*` : '';
           md.appendMarkdown(`- ${line.label}: \`${bar}\` **${Math.round(pct)}%**${resetInfo}\n`);
-        } else if (line.type === 'text') {
-          md.appendMarkdown(`- ${line.label}: **${line.value}**\n`);
-        } else if (line.type === 'badge') {
-          md.appendMarkdown(`- ${line.label}: \`${line.text}\`\n`);
         }
       }
       md.appendMarkdown('\n');
     }
   }
 
-  // Budget Section
   md.appendMarkdown('---\n\n');
-  const alertIcon =
-    budget.alertLevel === 'panic'
-      ? '🚨'
-      : budget.alertLevel === 'critical'
-        ? '🔴'
-        : budget.alertLevel === 'warning'
-          ? '⚠️'
-          : '✅';
   md.appendMarkdown(
-    `💰 **Budget:** \$${budget.currentSpend.toFixed(2)} / \$${budget.monthly.toFixed(2)} ${alertIcon} (${budget.percent}%)\n\n`,
+    `💰 **Budget:** \$${budget.currentSpend.toFixed(2)} / \$${budget.monthly.toFixed(2)} (${budget.percent}%)\n\n`,
   );
-
-  // Quick Action Links
-  md.appendMarkdown('---\n\n');
   md.appendMarkdown(
-    `[$(graph) Open Dashboard](command:tokenlens.openDashboard)  •  [$(gear) Settings](command:tokenlens.openSettings)  •  [$(refresh) Refresh](command:tokenlens.refresh)\n`,
+    `[$(graph) Open Dashboard](command:tokenlens.openDashboard)  •  [$(refresh) Refresh](command:tokenlens.refresh)  •  [$(gear) Settings](command:tokenlens.openSettings)\n`,
   );
 
   return md;

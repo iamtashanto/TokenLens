@@ -61,6 +61,11 @@
     },
     "commands": [
       {
+        "command": "tokenlens.openDashboard",
+        "title": "TokenLens: Open Dashboard",
+        "icon": "$(graph)"
+      },
+      {
         "command": "tokenlens.refresh",
         "title": "TokenLens: Refresh All Providers",
         "icon": "$(refresh)"
@@ -88,12 +93,28 @@
         "title": "TokenLens: Select Status Bar Provider"
       },
       {
+        "command": "tokenlens.exportCSV",
+        "title": "TokenLens: Export Usage CSV"
+      },
+      {
+        "command": "tokenlens.exportJSON",
+        "title": "TokenLens: Export Usage JSON"
+      },
+      {
         "command": "tokenlens.setClaudeToken",
         "title": "TokenLens: Set Claude Session Cookie"
       },
       {
         "command": "tokenlens.setDeepSeekKey",
         "title": "TokenLens: Set DeepSeek API Key"
+      },
+      {
+        "command": "tokenlens.setOpenRouterKey",
+        "title": "TokenLens: Set OpenRouter API Key"
+      },
+      {
+        "command": "tokenlens.setGroqKey",
+        "title": "TokenLens: Set Groq API Key"
       },
       {
         "command": "tokenlens.setMistralCookie",

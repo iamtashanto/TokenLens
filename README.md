@@ -41,8 +41,9 @@ Developers today use multiple AI tools concurrently — **Google Antigravity**, 
 
 **TokenLens brings everything into one unified, ultra-fast, and private VS Code extension:**
 
-- ⏱️ **Live Multi-Window Rate Limits & Quota Pools:** Weekly and 5-hour limit meters with countdown timers.
-- ⚡ **Multi-Provider Compact Status Bar:** Displays all active in-use AI providers simultaneously (e.g. `🔭 AG 45% · Codex 21%`) with rich hover tooltips.
+- ⏱️ **Live Multi-Window Rate Limits & Quota Pools:** Weekly and 5-hour limit meters with exact countdown timers (`2h 15m`, `4d 12h`).
+- ⚡ **Individual Provider Status Bar Indicators:** Displays dedicated compact circular gauges for every active AI tool simultaneously (e.g. `● AG 45%`, `● Codex 21%`, `● Copilot ✓`, `● Claude 18%`).
+- 🔍 **In-Depth Hover Telemetry:** Hover over any provider's status bar item to view model-by-model quota meters, 5-hour and weekly reset countdowns, and budget tracking.
 - 🌐 **Global Multi-Currency Conversion:** Instantly convert usage and spend into **USD ($), BDT (৳), EUR (€), INR (₹), GBP (£), JPY (¥), CAD, AUD**.
 - 💡 **AI Cost Optimization Advisor:** Actionable suggestions to downscale routine tasks to mini models and save up to 65%.
 - 🚀 **Prompt Cache Analyzer:** Real-time analysis of cached vs uncached tokens, hit rate %, and dollar savings.
@@ -72,15 +73,15 @@ Developers today use multiple AI tools concurrently — **Google Antigravity**, 
 
 ## ⚡ Multi-Provider Sleek Status Bar
 
-Instead of cluttering your screen with giant single-provider bars, TokenLens features an **ultra-compact multi-provider status bar**:
+TokenLens gives each active provider its own **compact circular indicator** on your status bar:
 
 ```
-🔭 AG 45% · Codex 21% · Claude 18%
+● AG 45%   ● Codex 21%   ● Copilot ✓   ● Claude 18%
 ```
 
-- **Smart Multi-Display:** Automatically displays all currently active tools side-by-side.
-- **Rich Hover Tooltip:** Hover over the status bar item to view a complete breakdown of each model's quota, countdown timers, monthly budget progress, and quick action buttons.
-- **One-Click Dashboard Access:** Click the status bar anytime to open the full interactive dashboard.
+- **Independent Multi-Tool Display:** All active AI providers show side-by-side with crisp circular status indicators.
+- **Provider-Specific Hover Tooltip:** Hovering over any item displays that exact provider's in-depth model limits, 5-hour and weekly reset timers, and budget status.
+- **Instant Click Action:** Clicking any status bar item immediately opens and focuses the TokenLens dashboard.
 
 ---
 

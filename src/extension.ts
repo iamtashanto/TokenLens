@@ -384,9 +384,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('tokenlens.refresh', () => refreshAll()),
-    vscode.commands.registerCommand('tokenlens.openDashboard', () => {
-      vscode.commands.executeCommand('tokenlens.dashboard.focus');
+    vscode.commands.registerCommand('tokenlens.openDashboard', async () => {
+      try {
+        await vscode.commands.executeCommand('workbench.view.extension.tokenlens');
+      } catch {
+        // fallback
+      }
+      try {
+        await vscode.commands.executeCommand('tokenlens.dashboard.focus');
+      } catch {
+        // fallback
+      }
     }),
     vscode.commands.registerCommand('tokenlens.openSettings', () => {
       vscode.commands.executeCommand('workbench.action.openSettings', 'tokenlens');

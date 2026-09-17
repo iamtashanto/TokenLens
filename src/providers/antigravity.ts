@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as child_process from 'child_process';
 import type { MetricLine, ProviderResult } from '../types/index.js';
 import { ProviderInterface, errorResult, clamp } from './base.js';
-import { getAntigravityDbPath, getAntigravityTokenPaths, firstExisting } from '../util/platform.js';
+import { getAntigravityDbPath, getAntigravityDbPaths, getAntigravityTokenPaths, firstExisting } from '../util/platform.js';
 import { readDbValue } from '../util/sqlite.js';
 import { SecretStore, SECRET_KEYS } from '../util/secrets.js';
 import { withTimeout } from '../util/http.js';
@@ -698,23 +698,25 @@ export class AntigravityProvider implements ProviderInterface {
   }
 
   private async resolveAccessToken(): Promise<string | null> {
-    // 1. Check Antigravity SQLite DB
-    const dbPath = getAntigravityDbPath();
-    if (dbPath && fs.existsSync(dbPath)) {
-      try {
-        const tokens = await loadOAuthTokensFromDb(dbPath);
-        if (tokens?.accessToken) {
-          const nowSec = Math.floor(Date.now() / 1000);
-          if (!tokens.expirySeconds || tokens.expirySeconds > nowSec) {
-            return tokens.accessToken;
+    // 1. Check Antigravity SQLite DBs (Antigravity IDE, VS Code globalStorage, etc.)
+    const dbPaths = getAntigravityDbPaths();
+    for (const dbPath of dbPaths) {
+      if (fs.existsSync(dbPath)) {
+        try {
+          const tokens = await loadOAuthTokensFromDb(dbPath);
+          if (tokens?.accessToken) {
+            const nowSec = Math.floor(Date.now() / 1000);
+            if (!tokens.expirySeconds || tokens.expirySeconds > nowSec) {
+              return tokens.accessToken;
+            }
+            if (tokens.refreshToken) {
+              const refreshed = await this.refreshGoogleToken(tokens.refreshToken);
+              if (refreshed) return refreshed;
+            }
           }
-          if (tokens.refreshToken) {
-            const refreshed = await this.refreshGoogleToken(tokens.refreshToken);
-            if (refreshed) return refreshed;
-          }
+        } catch {
+          // continue
         }
-      } catch {
-        // continue
       }
     }
 

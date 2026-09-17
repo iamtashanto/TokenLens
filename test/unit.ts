@@ -8,7 +8,7 @@ import { OptimizationAdvisorService } from '../src/services/OptimizationAdvisorS
 import { TimeRangeService } from '../src/services/TimeRangeService.js';
 import type { UsageRecord, ModelSplit } from '../src/types/index.js';
 
-function runTests() {
+async function runTests() {
   console.log('--- Starting TokenLens Unit Test Suite ---');
 
   // 1. PricingService
@@ -120,7 +120,47 @@ function runTests() {
   const thisWeek = timeService.resolve('thisWeek');
   assert(thisWeek.startDate.length > 0, 'Start date should not be empty');
   assert(thisWeek.endDate.length > 0, 'End date should not be empty');
-  console.log('✓ TimeRangeService: Date range resolution passed (' + thisWeek.startDate + ' to ' + thisWeek.endDate + ')');
+  // 8. StatusBarRenderer
+  const { renderProviderStatusBarText, renderProviderTooltip, formatResetCountdown } = await import('../src/views/StatusBarRenderer.js');
+  const dummyAgResult = {
+    id: 'antigravity',
+    name: 'Antigravity',
+    icon: 'antigravity',
+    plan: 'Pro Plan',
+    lines: [
+      {
+        type: 'progress' as const,
+        label: 'Gemini Models — 5-Hour Limit',
+        used: 45,
+        limit: 100,
+        format: { kind: 'percent' as const },
+        resetsAt: new Date(Date.now() + 2 * 3600000 + 15 * 60000).toISOString(),
+        resetPeriodLabel: '5-Hour Window',
+      },
+      {
+        type: 'progress' as const,
+        label: 'Gemini Models — Weekly Limit',
+        used: 20,
+        limit: 100,
+        format: { kind: 'percent' as const },
+        resetsAt: new Date(Date.now() + 4 * 86400000).toISOString(),
+        resetPeriodLabel: 'Weekly Reset',
+      },
+    ],
+  };
+  const agText = renderProviderStatusBarText(dummyAgResult, 'compact');
+  assert(agText.includes('AG 45%'), 'StatusBar text should include AG 45%');
+  assert(agText.includes('$(circle-filled)'), 'StatusBar text should have circle icon');
+
+  const agTooltip = renderProviderTooltip(dummyAgResult, stateSafe);
+  assert(agTooltip.value.includes('TokenLens'), 'Tooltip should contain TokenLens');
+  assert(agTooltip.value.includes('Gemini Models — 5-Hour Limit'), 'Tooltip should list 5-Hour Limit');
+  assert(agTooltip.value.includes('Weekly Reset'), 'Tooltip should list Weekly Reset');
+  assert(agTooltip.value.includes('command:tokenlens.openDashboard'), 'Tooltip should include openDashboard link');
+
+  const countdown = formatResetCountdown(new Date(Date.now() + 2 * 3600000).toISOString());
+  assert(countdown && countdown.includes('2h'), 'Countdown should format 2h');
+  console.log('✓ StatusBarRenderer: Multi-provider circle indicator & tooltip formatted properly: "' + agText + '"');
 
   console.log('\n==================================================');
   console.log('  ALL TOKENLENS UNIT TESTS PASSED SUCCESSFULLY!  ');

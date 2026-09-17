@@ -58,15 +58,37 @@ export function getWindsurfDbPaths(): string[] {
 // ------------------------------------------------------------------
 
 export function getAntigravityDbPath(): string | null {
+  const paths = getAntigravityDbPaths();
+  return paths.find((p) => fs.existsSync(p)) ?? null;
+}
+
+export function getAntigravityDbPaths(): string[] {
+  const candidates: string[] = [];
   if (platform === 'darwin') {
-    return expandHome('Library', 'Application Support', 'Antigravity', 'User', 'globalStorage', 'state.vscdb');
-  }
-  if (platform === 'win32') {
+    candidates.push(
+      expandHome('Library', 'Application Support', 'Antigravity', 'User', 'globalStorage', 'state.vscdb'),
+      expandHome('Library', 'Application Support', 'Google', 'Antigravity', 'User', 'globalStorage', 'state.vscdb'),
+      expandHome('Library', 'Application Support', 'Code', 'User', 'globalStorage', 'state.vscdb'),
+      expandHome('Library', 'Application Support', 'Code - Insiders', 'User', 'globalStorage', 'state.vscdb'),
+      expandHome('.gemini', 'antigravity', 'state.vscdb'),
+      expandHome('.antigravity', 'state.vscdb'),
+    );
+  } else if (platform === 'win32') {
     const appdata = process.env['APPDATA'] ?? expandHome('AppData', 'Roaming');
-    return path.join(appdata, 'Antigravity', 'User', 'globalStorage', 'state.vscdb');
+    candidates.push(
+      path.join(appdata, 'Antigravity', 'User', 'globalStorage', 'state.vscdb'),
+      path.join(appdata, 'Code', 'User', 'globalStorage', 'state.vscdb'),
+      path.join(appdata, 'Code - Insiders', 'User', 'globalStorage', 'state.vscdb'),
+    );
+  } else {
+    const xdg = process.env['XDG_CONFIG_HOME'] ?? expandHome('.config');
+    candidates.push(
+      path.join(xdg, 'Antigravity', 'User', 'globalStorage', 'state.vscdb'),
+      path.join(xdg, 'Code', 'User', 'globalStorage', 'state.vscdb'),
+      path.join(xdg, 'Code - Insiders', 'User', 'globalStorage', 'state.vscdb'),
+    );
   }
-  const xdg = process.env['XDG_CONFIG_HOME'] ?? expandHome('.config');
-  return path.join(xdg, 'Antigravity', 'User', 'globalStorage', 'state.vscdb');
+  return candidates;
 }
 
 /** Paths where antigravity-usage CLI stores OAuth tokens */
