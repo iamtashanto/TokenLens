@@ -1,8 +1,9 @@
 import React from 'react';
-import type { ProviderResult, MetricLine, ProgressLine, TextLine, BadgeLine } from '../../src/types/index';
+import type { ProviderResult, ProgressLine, TextLine, BadgeLine, DisplayCurrencyState } from '../../src/types/index';
 
 interface ProviderCardProps {
   result: ProviderResult;
+  currency?: DisplayCurrencyState;
   refreshing?: boolean;
 }
 
@@ -21,27 +22,36 @@ function timeUntilReset(isoStr: string | null | undefined): string | null {
   const hours = Math.floor(diff / 3_600_000);
   const mins = Math.floor((diff % 3_600_000) / 60_000);
   const days = Math.floor(hours / 24);
-  if (days > 0) return `Resets in ${days}d ${hours % 24}h`;
-  if (hours > 0) return `Resets in ${hours}h ${mins}m`;
-  return `Resets in ${mins}m`;
+  if (days > 0) return `⏱️ Resets in ${days}d ${hours % 24}h`;
+  if (hours > 0) return `⏱️ Resets in ${hours}h ${mins}m`;
+  return `⏱️ Resets in ${mins}m`;
 }
 
-function formatMetricValue(line: ProgressLine): string {
+function formatMetricValue(line: ProgressLine, currency?: DisplayCurrencyState): string {
   if (line.format.kind === 'percent') {
     return `${Math.round(line.used)}%`;
   }
   if (line.format.kind === 'dollars') {
-    return `$${line.used.toFixed(2)} / $${line.limit.toFixed(2)}`;
+    const sym = currency?.symbol ?? '$';
+    const rate = currency?.rate ?? 1;
+    const used = line.used * rate;
+    const limit = line.limit * rate;
+    if (currency?.code === 'JPY') {
+      return `${sym}${Math.round(used).toLocaleString()} / ${sym}${Math.round(limit).toLocaleString()}`;
+    }
+    return `${sym}${used.toFixed(2)} / ${sym}${limit.toFixed(2)}`;
   }
   return `${Math.round(line.used)} / ${Math.round(line.limit)} ${line.format.suffix ?? ''}`.trim();
 }
 
-export default function ProviderCard({ result, refreshing }: ProviderCardProps) {
-  const { name, brandColor, plan, lines, error } = result;
+export default function ProviderCard({ result, currency, refreshing }: ProviderCardProps) {
+  const { name, brandColor, plan, lines, error, quotaSummary } = result;
 
   const progressLines = lines.filter((l): l is ProgressLine => l.type === 'progress');
   const textLines = lines.filter((l): l is TextLine => l.type === 'text');
   const badgeLines = lines.filter((l): l is BadgeLine => l.type === 'badge');
+
+  const mainResetCountdown = timeUntilReset(quotaSummary?.primaryResetIso);
 
   return (
     <div className={`tl-provider-card${refreshing ? ' refreshing' : ''}`}>
@@ -53,10 +63,15 @@ export default function ProviderCard({ result, refreshing }: ProviderCardProps) 
             style={{ backgroundColor: brandColor }}
             title={name}
           />
-          <span className="tl-provider-name">{name}</span>
+          <strong className="tl-provider-name">{name}</strong>
           {plan && <span className="tl-plan-badge">{plan}</span>}
         </div>
-        {refreshing && <span className="tl-refresh-spinner">Refreshing...</span>}
+        <div className="tl-card-top-right">
+          {mainResetCountdown && (
+            <span className="tl-reset-pill">{mainResetCountdown}</span>
+          )}
+          {refreshing && <span className="tl-refresh-spinner">Refreshing...</span>}
+        </div>
       </div>
 
       {/* Error state */}
@@ -79,13 +94,18 @@ export default function ProviderCard({ result, refreshing }: ProviderCardProps) 
                   ? (line.used / line.limit) * 100
                   : 0;
             const barColor = getProgressColor(pct);
-            const resetText = timeUntilReset(line.resetsAt);
+            const lineResetText = timeUntilReset(line.resetsAt);
 
             return (
               <div key={idx} className="tl-metric-progress">
                 <div className="tl-metric-label-row">
-                  <span className="tl-metric-label">{line.label}</span>
-                  <span className="tl-metric-value">{formatMetricValue(line)}</span>
+                  <div className="tl-label-with-tag">
+                    <span className="tl-metric-label">{line.label}</span>
+                    {line.resetPeriodLabel && (
+                      <span className="tl-period-tag">{line.resetPeriodLabel}</span>
+                    )}
+                  </div>
+                  <strong className="tl-metric-value">{formatMetricValue(line, currency)}</strong>
                 </div>
                 <div className="tl-progress-bar-bg">
                   <div
@@ -96,7 +116,9 @@ export default function ProviderCard({ result, refreshing }: ProviderCardProps) 
                     }}
                   />
                 </div>
-                {resetText && <div className="tl-reset-text">{resetText}</div>}
+                {lineResetText && !mainResetCountdown && (
+                  <div className="tl-reset-text">{lineResetText}</div>
+                )}
               </div>
             );
           })}
@@ -105,7 +127,7 @@ export default function ProviderCard({ result, refreshing }: ProviderCardProps) 
           {textLines.map((line, idx) => (
             <div key={idx} className="tl-metric-text-row">
               <span className="tl-text-label">{line.label}:</span>
-              <span className="tl-text-val">{line.value}</span>
+              <strong className="tl-text-val">{line.value}</strong>
             </div>
           ))}
 
@@ -131,4 +153,3 @@ export default function ProviderCard({ result, refreshing }: ProviderCardProps) 
     </div>
   );
 }
-

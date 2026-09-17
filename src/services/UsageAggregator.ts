@@ -11,8 +11,15 @@ import type {
   SupportedProvider,
 } from '../types/index.js';
 import type { PricingService } from './PricingService.js';
+import { CacheAnalyticsService } from './CacheAnalyticsService.js';
+import { OptimizationAdvisorService } from './OptimizationAdvisorService.js';
+import { ProjectSplitService } from './ProjectSplitService.js';
 
 export class UsageAggregator {
+  private readonly cacheService = new CacheAnalyticsService();
+  private readonly advisorService = new OptimizationAdvisorService();
+  private readonly projectService = new ProjectSplitService();
+
   constructor(private readonly pricingService: PricingService) {}
 
   private addTokens(a: TokenBreakdown, b: TokenBreakdown): TokenBreakdown {
@@ -75,6 +82,7 @@ export class UsageAggregator {
           records: 0,
           tokens: {},
           cost: cost ? { amount: 0, currency: cost.currency, source: cost.source } : undefined,
+          projectName: record.projectName,
         });
       }
       const sess = sessionMap.get(sKey)!;
@@ -126,8 +134,8 @@ export class UsageAggregator {
       const obsDate = new Date(record.startedAt ?? record.observedAt);
       const bKey =
         trendGranularity === 'hour'
-          ? obsDate.toISOString().slice(0, 13) // "YYYY-MM-DDTHH"
-          : obsDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+          ? obsDate.toISOString().slice(0, 13)
+          : obsDate.toISOString().slice(0, 10);
 
       if (!trendMap.has(bKey)) {
         trendMap.set(bKey, {
@@ -146,13 +154,25 @@ export class UsageAggregator {
       }
     }
 
-    // Compute unique session counts per provider and trend bucket
+    // Compute unique session counts per provider
     for (const sess of sessionMap.values()) {
       const p = providerMap.get(sess.provider);
       if (p) p.sessions += 1;
     }
 
-    // Sort trend chronologically
+    // Compute average cost per record in modelSplit
+    const modelSplitArray = Array.from(modelMap.values())
+      .map((m) => ({
+        ...m,
+        avgCostPerRecord: m.records > 0 ? (m.cost?.amount ?? 0) / m.records : 0,
+      }))
+      .sort((a, b) => (b.cost?.amount ?? 0) - (a.cost?.amount ?? 0));
+
+    // Cache analytics, project split, optimization tips
+    const cacheAnalytics = this.cacheService.calculate(inRange);
+    const projectSplit = this.projectService.calculate(inRange);
+    const optimizationTips = this.advisorService.generateTips(modelSplitArray, cacheAnalytics);
+
     const sortedTrend = Array.from(trendMap.values()).sort((a, b) => a.bucket.localeCompare(b.bucket));
 
     return {
@@ -169,7 +189,10 @@ export class UsageAggregator {
         activeModels: activeModels.size,
       },
       providerSplit: Array.from(providerMap.values()),
-      modelSplit: Array.from(modelMap.values()).sort((a, b) => (b.cost?.amount ?? 0) - (a.cost?.amount ?? 0)),
+      modelSplit: modelSplitArray,
+      projectSplit,
+      cacheAnalytics,
+      optimizationTips,
       trend: sortedTrend,
       trendGranularity,
       sessions: Array.from(sessionMap.values()).sort((a, b) => b.startedAt?.localeCompare(a.startedAt ?? '') ?? 0),
@@ -179,4 +202,3 @@ export class UsageAggregator {
     };
   }
 }
-

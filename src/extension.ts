@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as os from 'os';
+import * as path from 'path';
 import { ProviderRegistry } from './providers/registry.js';
 import { SecretStore, SECRET_KEYS } from './util/secrets.js';
 import { ClaudeProvider } from './providers/claude.js';
@@ -10,6 +12,8 @@ import { AntigravityProvider } from './providers/antigravity.js';
 import { OllamaProvider } from './providers/ollama.js';
 import { DeepSeekProvider } from './providers/deepseek.js';
 import { MistralProvider } from './providers/mistral.js';
+import { OpenRouterProvider } from './providers/openrouter.js';
+import { GroqProvider } from './providers/groq.js';
 import { PricingService } from './services/PricingService.js';
 import { UsageAggregator } from './services/UsageAggregator.js';
 import { BudgetService } from './services/BudgetService.js';
@@ -18,9 +22,11 @@ import { ExchangeRateService } from './services/ExchangeRateService.js';
 import { TimeRangeService } from './services/TimeRangeService.js';
 import { AutoRefreshService } from './services/AutoRefreshService.js';
 import { LocalSourceDetector } from './services/LocalSourceDetector.js';
+import { ExportService } from './services/ExportService.js';
 import { ClaudeAdapter } from './adapters/ClaudeAdapter.js';
 import { CodexAdapter } from './adapters/CodexAdapter.js';
 import { GrokAdapter } from './adapters/GrokAdapter.js';
+import { ClineAdapter } from './adapters/ClineAdapter.js';
 import { StatusBarController } from './views/StatusBarController.js';
 import { DashboardWebviewProvider } from './views/DashboardWebviewProvider.js';
 import type {
@@ -29,10 +35,11 @@ import type {
   DashboardState,
   UsageRecord,
   TimeRangeKind,
+  SupportedCurrency,
 } from './types/index.js';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  console.log('[TokenLens] Activating extension...');
+  console.log('[TokenLens] Activating ultra extension...');
 
   // 1. Core utilities and services
   const secretStore = new SecretStore(context.secrets);
@@ -43,13 +50,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const exchangeRateService = new ExchangeRateService();
   const timeRangeService = new TimeRangeService();
   const sourceDetector = new LocalSourceDetector(context);
+  const exportService = new ExportService();
+
+  // Pre-fetch live exchange rates in background
+  exchangeRateService.fetchPublicRates().catch(() => {});
 
   // 2. Adapters for local log parsing
   const claudeAdapter = new ClaudeAdapter();
   const codexAdapter = new CodexAdapter();
   const grokAdapter = new GrokAdapter();
+  const clineAdapter = new ClineAdapter();
 
-  // 3. Provider Registry & All 9 Providers
+  // 3. Provider Registry & All 11 Providers
   const registry = new ProviderRegistry();
   registry.register(new ClaudeProvider(secretStore));
   registry.register(new CursorProvider());
@@ -60,6 +72,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registry.register(new OllamaProvider());
   registry.register(new DeepSeekProvider(secretStore));
   registry.register(new MistralProvider(secretStore));
+  registry.register(new OpenRouterProvider(secretStore));
+  registry.register(new GroqProvider(secretStore));
 
   // 4. Status Bar Controller
   const statusBar = new StatusBarController(context, registry);
@@ -73,7 +87,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  // In-memory state & single-flight refresh lock
+  // State caches
   let cachedResults: ProviderResult[] = [];
   let cachedSummary: UsageSummary | null = null;
   let activeRangeKind: TimeRangeKind = vscode.workspace
@@ -86,6 +100,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const config = vscode.workspace.getConfiguration('tokenlens');
     const records: UsageRecord[] = [];
 
+    // Claude Code CLI
     const claudePath = config.get<string>('localSources.claude');
     if (claudePath) {
       try {
@@ -96,6 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
 
+    // Codex CLI
     const codexPath = config.get<string>('localSources.codex');
     if (codexPath) {
       try {
@@ -106,6 +122,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
 
+    // Grok CLI
     const grokPath = config.get<string>('localSources.grok');
     if (grokPath) {
       try {
@@ -114,6 +131,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       } catch (err) {
         console.warn('[TokenLens] Grok local import error:', err);
       }
+    }
+
+    // Cline & Roo Code
+    const clineHome = path.join(os.homedir(), '.cline', 'tasks');
+    const rooHome = path.join(os.homedir(), '.roo-code', 'tasks');
+    const clinePaths: string[] = [];
+    if (vscode.workspace.fs) {
+      clinePaths.push(clineHome, rooHome);
+    }
+    try {
+      const res = await clineAdapter.importUsage(clinePaths);
+      records.push(...res.records);
+    } catch {
+      // ignore
     }
 
     return records;
@@ -126,7 +157,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ): number {
     let spend = 0;
 
-    // Check dollar-based provider lines
     for (const r of results) {
       for (const line of r.lines) {
         if (line.type === 'progress' && line.format.kind === 'dollars') {
@@ -135,7 +165,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
 
-    // Add local log cost for current month if available
     if (summary?.totals.cost?.amount) {
       spend += summary.totals.cost.amount;
     }
@@ -143,7 +172,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return Math.round(spend * 100) / 100;
   }
 
-  /** Refresh all data (providers + local logs) */
+  function assembleDashboardState(): DashboardState | null {
+    if (!cachedSummary) return null;
+    const currentSpend = calculateTotalMonthlySpend(cachedResults, cachedSummary);
+    const budgetState = budgetService.getBudgetState();
+    const roiConfig = roiCalculator.getConfig();
+    const roiResult = roiCalculator.calculate(
+      currentSpend,
+      cachedSummary.totals.records,
+      roiConfig,
+    );
+    const currency = exchangeRateService.getDisplayCurrency();
+
+    return {
+      providers: cachedResults,
+      summary: cachedSummary,
+      budget: budgetState,
+      roi: roiResult,
+      currency,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  /** Refresh all data */
   async function refreshAll(): Promise<void> {
     if (refreshInFlight) return refreshInFlight;
 
@@ -154,7 +205,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       try {
         const enabledConfig = vscode.workspace.getConfiguration('tokenlens.providers');
 
-        // Fetch from all enabled providers in parallel
         const providers = registry.getAll().filter((p) => {
           return enabledConfig.get<boolean>(`${p.id}.enabled`, true);
         });
@@ -171,36 +221,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         cachedResults = results;
 
-        // Aggregate local logs
         const range = timeRangeService.resolve(activeRangeKind);
         const localRecords = await loadLocalRecords();
         cachedSummary = usageAggregator.aggregate(localRecords, range);
 
-        // Update spend & check budget alerts
         const currentSpend = calculateTotalMonthlySpend(cachedResults, cachedSummary);
         const currentMonth = timeRangeService.getCurrentMonthKey();
         budgetService.updateSpend(currentSpend, currentMonth);
         budgetService.checkAndNotify();
 
-        const budgetState = budgetService.getBudgetState();
-        const roiConfig = roiCalculator.getConfig();
-        const roiResult = roiCalculator.calculate(
-          currentSpend,
-          cachedSummary.totals.records,
-          roiConfig,
-        );
-
-        // Update views
-        statusBar.update(cachedResults, budgetState);
-
-        const dashboardState: DashboardState = {
-          providers: cachedResults,
-          summary: cachedSummary,
-          budget: budgetState,
-          roi: roiResult,
-          updatedAt: new Date().toISOString(),
-        };
-        webviewProvider.postState(dashboardState);
+        const state = assembleDashboardState();
+        if (state) {
+          statusBar.update(cachedResults, state.budget);
+          webviewProvider.postState(state);
+        }
       } catch (err) {
         console.error('[TokenLens] Refresh error:', err);
         webviewProvider.postError(err instanceof Error ? err.message : String(err));
@@ -217,24 +251,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // 6. Handle messages from webview
   webviewProvider.onMessage(async (msg) => {
     switch (msg.type) {
-      case 'ready':
-        if (cachedResults.length > 0 && cachedSummary) {
-          const budgetState = budgetService.getBudgetState();
-          const roiResult = roiCalculator.calculate(
-            budgetState.currentSpend,
-            cachedSummary.totals.records,
-            roiCalculator.getConfig(),
-          );
-          webviewProvider.postState({
-            providers: cachedResults,
-            summary: cachedSummary,
-            budget: budgetState,
-            roi: roiResult,
-            updatedAt: new Date().toISOString(),
-          });
+      case 'ready': {
+        const state = assembleDashboardState();
+        if (state) {
+          webviewProvider.postState(state);
         }
         await refreshAll();
         break;
+      }
 
       case 'refreshAll':
         await refreshAll();
@@ -249,21 +273,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const idx = cachedResults.findIndex((r) => r.id === msg.id);
             if (idx >= 0) cachedResults[idx] = res;
             else cachedResults.push(res);
-            if (cachedSummary) {
-              const budgetState = budgetService.getBudgetState();
-              const roiResult = roiCalculator.calculate(
-                budgetState.currentSpend,
-                cachedSummary.totals.records,
-                roiCalculator.getConfig(),
-              );
-              webviewProvider.postState({
-                providers: cachedResults,
-                summary: cachedSummary,
-                budget: budgetState,
-                roi: roiResult,
-                updatedAt: new Date().toISOString(),
-              });
-              statusBar.update(cachedResults, budgetState);
+            const state = assembleDashboardState();
+            if (state) {
+              webviewProvider.postState(state);
+              statusBar.update(cachedResults, state.budget);
             }
           } finally {
             webviewProvider.postRefreshing(msg.id, false);
@@ -291,6 +304,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await refreshAll();
         break;
 
+      case 'setCurrency':
+        await vscode.workspace
+          .getConfiguration('tokenlens')
+          .update('display.currency', msg.currency, vscode.ConfigurationTarget.Global);
+        const state = assembleDashboardState();
+        if (state) webviewProvider.postState(state);
+        break;
+
+      case 'exportCSV':
+        if (cachedSummary) {
+          const csv = exportService.generateCSV(cachedSummary);
+          const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(`tokenlens-export-${new Date().toISOString().slice(0, 10)}.csv`),
+            filters: { 'CSV Files': ['csv'] },
+          });
+          if (uri) {
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(csv, 'utf8'));
+            vscode.window.showInformationMessage('TokenLens: Usage CSV exported successfully!');
+          }
+        }
+        break;
+
+      case 'exportJSON': {
+        const fullState = assembleDashboardState();
+        if (fullState) {
+          const json = exportService.generateJSON(fullState);
+          const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(`tokenlens-export-${new Date().toISOString().slice(0, 10)}.json`),
+            filters: { 'JSON Files': ['json'] },
+          });
+          if (uri) {
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(json, 'utf8'));
+            vscode.window.showInformationMessage('TokenLens: Usage JSON exported successfully!');
+          }
+        }
+        break;
+      }
+
       case 'openSettings':
         vscode.commands.executeCommand('workbench.action.openSettings', 'tokenlens');
         break;
@@ -310,7 +361,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (e.affectsConfiguration('tokenlens.refreshInterval')) {
         autoRefreshService.restart();
       }
-      if (e.affectsConfiguration('tokenlens.providers')) {
+      if (e.affectsConfiguration('tokenlens.providers') || e.affectsConfiguration('tokenlens.display.currency')) {
         refreshAll();
       }
     }),
@@ -318,11 +369,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   // 8. Register Commands
-  async function promptSecret(
-    key: string,
-    prompt: string,
-    placeholder: string,
-  ): Promise<void> {
+  async function promptSecret(key: string, prompt: string, placeholder: string): Promise<void> {
     const value = await vscode.window.showInputBox({
       prompt,
       placeHolder: placeholder,
@@ -377,11 +424,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await sourceDetector.promptIfNew(detected);
       await refreshAll();
     }),
+    vscode.commands.registerCommand('tokenlens.exportCSV', () => {
+      if (cachedSummary) {
+        const csv = exportService.generateCSV(cachedSummary);
+        vscode.window.showSaveDialog({ filters: { 'CSV Files': ['csv'] } }).then((uri) => {
+          if (uri) vscode.workspace.fs.writeFile(uri, Buffer.from(csv, 'utf8'));
+        });
+      }
+    }),
+    vscode.commands.registerCommand('tokenlens.exportJSON', () => {
+      const state = assembleDashboardState();
+      if (state) {
+        const json = exportService.generateJSON(state);
+        vscode.window.showSaveDialog({ filters: { 'JSON Files': ['json'] } }).then((uri) => {
+          if (uri) vscode.workspace.fs.writeFile(uri, Buffer.from(json, 'utf8'));
+        });
+      }
+    }),
     vscode.commands.registerCommand('tokenlens.setClaudeToken', () =>
       promptSecret(SECRET_KEYS.CLAUDE_COOKIE, 'Claude Session Cookie', 'sessionKey=...'),
     ),
     vscode.commands.registerCommand('tokenlens.setDeepSeekKey', () =>
       promptSecret(SECRET_KEYS.DEEPSEEK_API_KEY, 'DeepSeek API Key', 'sk-...'),
+    ),
+    vscode.commands.registerCommand('tokenlens.setOpenRouterKey', () =>
+      promptSecret('openrouter.apiKey', 'OpenRouter API Key', 'sk-or-v1-...'),
+    ),
+    vscode.commands.registerCommand('tokenlens.setGroqKey', () =>
+      promptSecret('groq.apiKey', 'Groq API Key', 'gsk_...'),
     ),
     vscode.commands.registerCommand('tokenlens.setMistralCookie', () =>
       promptSecret(SECRET_KEYS.MISTRAL_COOKIE, 'Mistral Admin Cookie', 'csrftoken=...; sessionid=...'),
@@ -396,14 +466,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         'Clear All',
       );
       if (confirm === 'Clear All') {
-        await secretStore.deleteAll(Object.values(SECRET_KEYS));
+        await secretStore.deleteAll([...Object.values(SECRET_KEYS), 'openrouter.apiKey', 'groq.apiKey']);
         vscode.window.showInformationMessage('TokenLens: All stored credentials cleared.');
         await refreshAll();
       }
     }),
   );
 
-  // 9. Auto-detect sources on startup if enabled
+  // 9. Auto-detect sources on startup
   const autoDetect = vscode.workspace
     .getConfiguration('tokenlens')
     .get<boolean>('autoDetectLocalSources', true);
@@ -420,4 +490,3 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 export function deactivate(): void {
   console.log('[TokenLens] Extension deactivated.');
 }
-

@@ -32,7 +32,6 @@ export class CopilotProvider implements ProviderInterface {
   }
 
   private async getGitHubToken(): Promise<string | null> {
-    // Strategy 1: VS Code authentication session
     try {
       const session = await vscode.authentication.getSession('github', ['copilot'], { silent: true });
       if (session?.accessToken) return session.accessToken;
@@ -40,7 +39,6 @@ export class CopilotProvider implements ProviderInterface {
       // ignore
     }
 
-    // Strategy 2: gh CLI hosts.yml
     const hostsPath = getGhHostsPath();
     if (hostsPath && fs.existsSync(hostsPath)) {
       try {
@@ -52,7 +50,6 @@ export class CopilotProvider implements ProviderInterface {
       }
     }
 
-    // Strategy 3: gh auth token command
     for (const bin of getGhExecutablePaths()) {
       try {
         const token = child_process
@@ -95,6 +92,7 @@ export class CopilotProvider implements ProviderInterface {
     });
 
     const lines: MetricLine[] = [];
+    let primaryResetIso: string | undefined;
 
     // Format 1: New quotas object
     if (data.quotas && typeof data.quotas === 'object') {
@@ -105,6 +103,7 @@ export class CopilotProvider implements ProviderInterface {
         const label = key
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (c) => c.toUpperCase());
+        if (q.reset_date) primaryResetIso = q.reset_date;
         lines.push({
           type: 'progress',
           label,
@@ -112,12 +111,14 @@ export class CopilotProvider implements ProviderInterface {
           limit: 100,
           format: { kind: 'percent' },
           resetsAt: q.reset_date ?? null,
+          resetPeriodLabel: 'Monthly Quota',
         });
       }
     }
 
     // Format 2: Free tier / limited user quotas
     if (lines.length === 0 && data.limited_user_quotas && data.monthly_quotas) {
+      primaryResetIso = data.limited_user_reset_date;
       for (const [key, remaining] of Object.entries(data.limited_user_quotas)) {
         const total = data.monthly_quotas[key] ?? 100;
         const used = Math.max(total - remaining, 0);
@@ -129,6 +130,7 @@ export class CopilotProvider implements ProviderInterface {
           limit: 100,
           format: { kind: 'percent' },
           resetsAt: data.limited_user_reset_date ?? null,
+          resetPeriodLabel: 'Monthly Free Tier',
         });
       }
     }
@@ -137,6 +139,7 @@ export class CopilotProvider implements ProviderInterface {
     if (lines.length === 0 && data.quota_snapshots?.premium_interactions) {
       const snap = data.quota_snapshots.premium_interactions;
       const pctUsed = clamp(100 - (snap.percent_remaining ?? 100), 0, 100);
+      primaryResetIso = snap.reset_date;
       lines.push({
         type: 'progress',
         label: 'Premium Quota',
@@ -144,6 +147,7 @@ export class CopilotProvider implements ProviderInterface {
         limit: 100,
         format: { kind: 'percent' },
         resetsAt: snap.reset_date ?? null,
+        resetPeriodLabel: 'Monthly Reset',
       });
     }
 
@@ -161,9 +165,12 @@ export class CopilotProvider implements ProviderInterface {
       name: this.displayName,
       icon: this.id,
       brandColor: this.brandColor,
-      plan: data.copilot_plan ? data.copilot_plan.toUpperCase() : 'Copilot',
+      plan: data.copilot_plan ? data.copilot_plan.toUpperCase() : 'Copilot Individual',
       lines,
+      quotaSummary: {
+        primaryResetIso,
+        primaryResetLabel: 'Monthly Reset',
+      },
     };
   }
 }
-

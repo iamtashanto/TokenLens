@@ -1,15 +1,14 @@
 // ============================================================
-// TokenLens — Shared Types
-// Combines patterns from smart-usage-bar, usagedock, and ai-code-usage
+// TokenLens — Comprehensive Shared Types
 // ============================================================
 
 // ------------------------------------------------------------------
-// Provider Data Types (usagedock MetricLine system)
+// Provider Data Types (Enhanced MetricLine system)
 // ------------------------------------------------------------------
 
 export type MetricFormat = {
   kind: 'percent' | 'dollars' | 'count';
-  suffix?: string; // e.g. 'credits' for count kind
+  suffix?: string; // e.g. 'credits', 'req/min', 'tokens'
 };
 
 export interface ProgressLine {
@@ -19,6 +18,7 @@ export interface ProgressLine {
   limit: number; // max value
   format: MetricFormat;
   resetsAt?: string | null; // ISO 8601 datetime string
+  resetPeriodLabel?: string; // e.g. "5-Hour Window", "Weekly Limit", "Monthly Reset"
 }
 
 export interface TextLine {
@@ -31,27 +31,40 @@ export interface BadgeLine {
   type: 'badge';
   label: string;
   text: string;
-  color?: string; // hex color
+  color?: string; // hex or theme color
 }
 
 export type MetricLine = ProgressLine | TextLine | BadgeLine;
 
-/** Full result returned by every provider's fetch() */
+/** Result returned by every provider */
 export interface ProviderResult {
-  id: string; // 'claude' | 'cursor' | 'copilot' | ...
+  id: string; // 'claude' | 'cursor' | 'copilot' | 'openrouter' | ...
   name: string; // Display name
   icon: string; // Icon key for webview
   brandColor: string; // Hex accent color
-  plan?: string | null; // Plan name (e.g. "Pro", "Business")
+  plan?: string | null; // e.g. "Pro", "Business", "Free"
   lines: MetricLine[];
   error?: string | null;
+  quotaSummary?: {
+    primaryPercent?: number;
+    primaryResetIso?: string | null;
+    primaryResetLabel?: string;
+    monthlySpendUsd?: number;
+  };
 }
 
 // ------------------------------------------------------------------
-// Local Log / JSONL Types (ai-code-usage pattern)
+// Local Log / JSONL Types
 // ------------------------------------------------------------------
 
-export type SupportedProvider = 'claude' | 'codex' | 'grok';
+export type SupportedProvider =
+  | 'claude'
+  | 'codex'
+  | 'grok'
+  | 'cline'
+  | 'roocode'
+  | 'openrouter'
+  | 'groq';
 
 export type TokenCategory =
   | 'input'
@@ -70,25 +83,27 @@ export type UsageCost = {
   amount: number;
   currency: string; // e.g. "USD"
   source: CostSource;
-  note?: string; // "partial" when some records are unpriced
+  note?: string;
 };
 
 export type SourceMeta = {
   sourcePath: string;
   sourceKind: 'json' | 'jsonl' | 'sqlite' | 'directory';
   parserVersion: string;
-  readAt: string; // ISO timestamp
+  readAt: string;
+  projectName?: string;
 };
 
 export type UsageRecord = {
   provider: SupportedProvider;
   model?: string;
   sessionId?: string;
-  startedAt?: string; // ISO timestamp
+  startedAt?: string;
   endedAt?: string;
-  observedAt: string; // ISO timestamp (always present)
+  observedAt: string;
   tokens: TokenBreakdown;
   cost?: UsageCost;
+  projectName?: string;
   source: SourceMeta;
   raw?: unknown;
 };
@@ -131,7 +146,7 @@ export type TimeRange = {
 };
 
 // ------------------------------------------------------------------
-// Aggregated Usage Summary (for dashboard)
+// Aggregated Usage Summary
 // ------------------------------------------------------------------
 
 export type UsageSession = {
@@ -143,6 +158,7 @@ export type UsageSession = {
   records: number;
   tokens: TokenBreakdown;
   cost?: UsageCost;
+  projectName?: string;
 };
 
 export type TrendBucket = {
@@ -167,6 +183,34 @@ export type ModelSplit = {
   records: number;
   tokens: TokenBreakdown;
   cost?: UsageCost;
+  avgCostPerRecord?: number;
+};
+
+export type ProjectSplit = {
+  projectName: string;
+  records: number;
+  sessions: number;
+  tokens: TokenBreakdown;
+  costUsd: number;
+  topModel?: string;
+};
+
+export type CacheAnalytics = {
+  totalInputTokens: number;
+  cachedReadTokens: number;
+  cacheWriteTokens: number;
+  uncachedInputTokens: number;
+  hitRatePercent: number;
+  estimatedSavingsUsd: number;
+};
+
+export type OptimizationTip = {
+  id: string;
+  title: string;
+  description: string;
+  projectedMonthlySavingsUsd: number;
+  impactLevel: 'high' | 'medium' | 'low';
+  category: 'model_downgrade' | 'cache_utilization' | 'session_length';
 };
 
 export type UsageSummary = {
@@ -180,6 +224,9 @@ export type UsageSummary = {
   };
   providerSplit: ProviderSplit[];
   modelSplit: ModelSplit[];
+  projectSplit: ProjectSplit[];
+  cacheAnalytics: CacheAnalytics;
+  optimizationTips: OptimizationTip[];
   trend: TrendBucket[];
   trendGranularity: 'hour' | 'day';
   sessions: UsageSession[];
@@ -216,7 +263,7 @@ export type CostEstimate =
     };
 
 // ------------------------------------------------------------------
-// Budget & ROI Types (TokenLens exclusive)
+// Budget & ROI Types
 // ------------------------------------------------------------------
 
 export type AlertLevel = 'safe' | 'warning' | 'critical' | 'panic';
@@ -243,26 +290,42 @@ export interface ROIResult {
 }
 
 // ------------------------------------------------------------------
+// Currency Support
+// ------------------------------------------------------------------
+
+export type SupportedCurrency = 'USD' | 'BDT' | 'EUR' | 'GBP' | 'INR' | 'JPY' | 'CAD' | 'AUD';
+
+export interface DisplayCurrencyState {
+  code: SupportedCurrency | string;
+  symbol: string;
+  rate: number; // multiplier from USD
+  source: 'manual' | 'public' | 'fallback';
+}
+
+export type PublicExchangeRates = {
+  updatedAt: string;
+  rates: Record<string, number>;
+};
+
+// ------------------------------------------------------------------
 // Webview Message Protocol
 // ------------------------------------------------------------------
 
-/** Full dashboard state sent from Extension → Webview */
 export interface DashboardState {
-  providers: ProviderResult[]; // Live API data from all providers
-  summary: UsageSummary; // Aggregated JSONL/local log data
+  providers: ProviderResult[];
+  summary: UsageSummary;
   budget: BudgetState;
   roi: ROIResult;
-  updatedAt: string; // ISO timestamp
+  currency: DisplayCurrencyState;
+  updatedAt: string;
 }
 
-/** Messages from Extension → Webview */
 export type ExtensionMessage =
   | { type: 'state'; data: DashboardState }
   | { type: 'loading'; loading: boolean }
   | { type: 'refreshing'; id: string; refreshing: boolean }
   | { type: 'error'; message: string };
 
-/** Messages from Webview → Extension */
 export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'refreshAll' }
@@ -270,22 +333,9 @@ export type WebviewMessage =
   | { type: 'setRange'; range: TimeRangeKind }
   | { type: 'setBudget'; monthly: number }
   | { type: 'setROIRate'; hourlyRate: number }
+  | { type: 'setCurrency'; currency: SupportedCurrency }
+  | { type: 'exportCSV' }
+  | { type: 'exportJSON' }
   | { type: 'exportPNG' }
   | { type: 'openSettings' }
   | { type: 'detectSources' };
-
-// ------------------------------------------------------------------
-// Exchange Rate Types
-// ------------------------------------------------------------------
-
-export type PublicExchangeRates = {
-  updatedAt: string;
-  rates: Record<string, number>;
-};
-
-export type DisplayCurrencyState = {
-  code: string;
-  rate: number; // multiplier from USD
-  source: 'manual' | 'public' | 'fallback';
-};
-

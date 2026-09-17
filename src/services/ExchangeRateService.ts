@@ -1,65 +1,101 @@
 import * as vscode from 'vscode';
-import type { PublicExchangeRates, DisplayCurrencyState } from '../types/index.js';
+import type { PublicExchangeRates, DisplayCurrencyState, SupportedCurrency } from '../types/index.js';
 import { httpGetJson } from '../util/http.js';
 
 const EXCHANGE_API_URL = 'https://open.er-api.com/v6/latest/USD';
 
-interface ErApiResponse {
-  result?: string;
-  base_code?: string;
-  rates?: Record<string, number>;
-}
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  BDT: '৳',
+  EUR: '€',
+  GBP: '£',
+  INR: '₹',
+  JPY: '¥',
+  CAD: 'CA$',
+  AUD: 'AU$',
+};
+
+const DEFAULT_RATES: Record<string, number> = {
+  USD: 1.0,
+  BDT: 122.5,
+  EUR: 0.92,
+  GBP: 0.78,
+  INR: 86.8,
+  JPY: 154.0,
+  CAD: 1.39,
+  AUD: 1.55,
+};
 
 export class ExchangeRateService {
   private cachedRates: PublicExchangeRates | null = null;
 
   async fetchPublicRates(): Promise<PublicExchangeRates> {
-    const data = await httpGetJson<ErApiResponse>(EXCHANGE_API_URL, { timeoutMs: 8000 });
-    if (data.result !== 'success' || data.base_code !== 'USD' || !data.rates) {
-      throw new Error('Invalid exchange rate API response');
+    try {
+      const data = await httpGetJson<{
+        result?: string;
+        base_code?: string;
+        rates?: Record<string, number>;
+      }>(EXCHANGE_API_URL, { timeoutMs: 6000 });
+
+      if (data.result === 'success' && data.rates) {
+        this.cachedRates = {
+          updatedAt: new Date().toISOString(),
+          rates: { ...DEFAULT_RATES, ...data.rates },
+        };
+        return this.cachedRates;
+      }
+    } catch {
+      // ignore network errors and use defaults
     }
+
     this.cachedRates = {
       updatedAt: new Date().toISOString(),
-      rates: data.rates,
+      rates: DEFAULT_RATES,
     };
     return this.cachedRates;
   }
 
   getDisplayCurrency(): DisplayCurrencyState {
-    const code = vscode.workspace
+    const code = (vscode.workspace
       .getConfiguration('tokenlens')
       .get<string>('display.currency', 'USD')
-      .toUpperCase();
+      .toUpperCase()) as SupportedCurrency;
+
+    const symbol = CURRENCY_SYMBOLS[code] ?? '$';
 
     if (code === 'USD') {
-      return { code: 'USD', rate: 1, source: 'fallback' };
+      return { code: 'USD', symbol: '$', rate: 1, source: 'fallback' };
     }
 
-    // Check manual override
+    // Check manual override in config
     const manualOverrides = vscode.workspace
       .getConfiguration('tokenlens')
       .get<Record<string, number>>('display.exchangeRates', {});
 
     if (manualOverrides[code] && manualOverrides[code] > 0) {
-      return { code, rate: manualOverrides[code], source: 'manual' };
+      return { code, symbol, rate: manualOverrides[code], source: 'manual' };
     }
 
-    // Check cached public rates
-    if (this.cachedRates?.rates[code]) {
-      return { code, rate: this.cachedRates.rates[code], source: 'public' };
-    }
-
-    return { code: 'USD', rate: 1, source: 'fallback' };
-  }
-
-  convertAmount(amountUsd: number, targetCode?: string): { amount: number; currency: string } {
-    const display = this.getDisplayCurrency();
-    const code = targetCode ?? display.code;
-    const rate = code === display.code ? display.rate : 1;
+    // Check cached public rates or default rates
+    const rate = this.cachedRates?.rates[code] ?? DEFAULT_RATES[code] ?? 1.0;
     return {
-      amount: Math.round(amountUsd * rate * 100) / 100,
-      currency: code,
+      code,
+      symbol,
+      rate,
+      source: this.cachedRates ? 'public' : 'fallback',
     };
   }
-}
 
+  formatCurrency(amountUsd: number, targetCode?: string): string {
+    const disp = this.getDisplayCurrency();
+    const code = targetCode ?? disp.code;
+    const rate = code === disp.code ? disp.rate : (DEFAULT_RATES[code] ?? 1);
+    const symbol = CURRENCY_SYMBOLS[code] ?? '$';
+    const converted = amountUsd * rate;
+
+    if (code === 'JPY') {
+      return `${symbol}${Math.round(converted).toLocaleString()}`;
+    }
+    return `${symbol}${converted.toFixed(2)}`;
+  }
+}

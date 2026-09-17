@@ -7,6 +7,8 @@ import type {
   ROIResult,
   ExtensionMessage,
   TimeRangeKind,
+  SupportedCurrency,
+  DisplayCurrencyState,
 } from '../src/types/index';
 import ProviderCard from './components/ProviderCard';
 import TrendChart from './components/TrendChart';
@@ -14,8 +16,11 @@ import ModelLeaderboard from './components/ModelLeaderboard';
 import ROICard from './components/ROICard';
 import BudgetMeter from './components/BudgetMeter';
 import ShareCard from './components/ShareCard';
-
-// ── Utility ──────────────────────────────────────────────────────────────────
+import CacheAnalyzer from './components/CacheAnalyzer';
+import OptimizationTips from './components/OptimizationTips';
+import ProjectBreakdown from './components/ProjectBreakdown';
+import CurrencySwitcher from './components/CurrencySwitcher';
+import ExportModal from './components/ExportModal';
 
 function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -24,8 +29,6 @@ function timeAgo(date: Date): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   return `${Math.floor(diff / 3_600_000)}h ago`;
 }
-
-// ── SVG Icons ─────────────────────────────────────────────────────────────────
 
 function RefreshIcon() {
   return (
@@ -46,23 +49,30 @@ function SettingsIcon() {
   );
 }
 
-// ── Tab definitions ───────────────────────────────────────────────────────────
+type Tab = 'overview' | 'trend' | 'cache' | 'insights' | 'leaderboard' | 'projects' | 'roi' | 'budget' | 'export';
 
-type Tab = 'overview' | 'trend' | 'leaderboard' | 'roi' | 'budget';
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'trend', label: 'Trend' },
-  { id: 'leaderboard', label: 'Leaderboard' },
-  { id: 'roi', label: 'ROI' },
-  { id: 'budget', label: 'Budget' },
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'overview', label: 'Quotas', icon: '⏱️' },
+  { id: 'trend', label: 'Trend', icon: '📈' },
+  { id: 'cache', label: 'Cache', icon: '⚡' },
+  { id: 'insights', label: 'Advisor', icon: '💡' },
+  { id: 'leaderboard', label: 'Models', icon: '🏆' },
+  { id: 'projects', label: 'Projects', icon: '📁' },
+  { id: 'roi', label: 'ROI', icon: '🚀' },
+  { id: 'budget', label: 'Budget', icon: '💰' },
+  { id: 'export', label: 'Export', icon: '📊' },
 ];
 
-// ── Default states ────────────────────────────────────────────────────────────
+const DEFAULT_CURRENCY: DisplayCurrencyState = {
+  code: 'USD',
+  symbol: '$',
+  rate: 1.0,
+  source: 'fallback',
+};
 
 const DEFAULT_SUMMARY: UsageSummary = {
   range: {
-    kind: 'thisMonth',
+    kind: 'thisWeek',
     startDate: '',
     endDate: '',
     start: '',
@@ -76,6 +86,16 @@ const DEFAULT_SUMMARY: UsageSummary = {
   },
   providerSplit: [],
   modelSplit: [],
+  projectSplit: [],
+  cacheAnalytics: {
+    totalInputTokens: 0,
+    cachedReadTokens: 0,
+    cacheWriteTokens: 0,
+    uncachedInputTokens: 0,
+    hitRatePercent: 0,
+    estimatedSavingsUsd: 0,
+  },
+  optimizationTips: [],
   trend: [],
   trendGranularity: 'day',
   sessions: [],
@@ -100,13 +120,12 @@ const DEFAULT_ROI: ROIResult = {
   roi: 0,
 };
 
-// ── App ───────────────────────────────────────────────────────────────────────
-
 export default function App() {
   const [providers, setProviders] = useState<ProviderResult[]>([]);
   const [summary, setSummary] = useState<UsageSummary>(DEFAULT_SUMMARY);
   const [budget, setBudget] = useState<BudgetState>(DEFAULT_BUDGET);
   const [roi, setROI] = useState<ROIResult>(DEFAULT_ROI);
+  const [currency, setCurrency] = useState<DisplayCurrencyState>(DEFAULT_CURRENCY);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -114,8 +133,6 @@ export default function App() {
   const [, setTick] = useState(0);
 
   const tabsRef = useRef<Tab[]>(TABS.map((t) => t.id));
-
-  // ── Message handler ────────────────────────────────────────────────────────
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -127,6 +144,7 @@ export default function App() {
         setSummary(msg.data.summary);
         setBudget(msg.data.budget);
         setROI(msg.data.roi);
+        if (msg.data.currency) setCurrency(msg.data.currency);
         setLastUpdated(new Date());
         setIsLoading(false);
       } else if (msg.type === 'loading') {
@@ -134,11 +152,8 @@ export default function App() {
       } else if (msg.type === 'refreshing') {
         setRefreshingIds((prev) => {
           const next = new Set(prev);
-          if (msg.refreshing) {
-            next.add(msg.id);
-          } else {
-            next.delete(msg.id);
-          }
+          if (msg.refreshing) next.add(msg.id);
+          else next.delete(msg.id);
           return next;
         });
       }
@@ -149,15 +164,11 @@ export default function App() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // ── Tick "Updated X ago" every 30s ────────────────────────────────────────
-
   useEffect(() => {
     if (!lastUpdated) return;
     const interval = setInterval(() => setTick((t) => t + 1), 30_000);
     return () => clearInterval(interval);
   }, [lastUpdated]);
-
-  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
   const refreshAll = useCallback(() => {
     postMessage({ type: 'refreshAll' });
@@ -173,7 +184,6 @@ export default function App() {
         refreshAll();
         return;
       }
-      // Arrow keys cycle tabs
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         setActiveTab((prev) => {
           const tabs = tabsRef.current;
@@ -189,38 +199,41 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [refreshAll]);
 
-  // ── ROI rate change ────────────────────────────────────────────────────────
-
   const handleROIRateChange = useCallback((rate: number) => {
     postMessage({ type: 'setROIRate', hourlyRate: rate });
   }, []);
-
-  // ── Budget change ──────────────────────────────────────────────────────────
 
   const handleBudgetChange = useCallback((monthly: number) => {
     postMessage({ type: 'setBudget', monthly });
     setBudget((prev) => ({ ...prev, monthly }));
   }, []);
 
-  // ── Range change ───────────────────────────────────────────────────────────
-
   const handleRangeChange = useCallback((range: TimeRangeKind) => {
     postMessage({ type: 'setRange', range });
   }, []);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleCurrencyChange = useCallback((code: SupportedCurrency) => {
+    postMessage({ type: 'setCurrency', currency: code });
+  }, []);
 
   const statusText = lastUpdated
     ? `Updated ${timeAgo(lastUpdated)}`
-    : 'Not yet loaded';
+    : 'Connecting...';
+
+  const totalCostConverted = (summary.totals.cost?.amount ?? 0) * currency.rate;
+  const formattedTotalCost =
+    currency.code === 'JPY'
+      ? `${currency.symbol}${Math.round(totalCostConverted).toLocaleString()}`
+      : `${currency.symbol}${totalCostConverted.toFixed(2)}`;
 
   return (
     <div className="tokenlens-app">
-      {/* Header */}
+      {/* Top Header */}
       <header className="tl-header">
         <div className="tl-header-brand">
           <span className="tl-brand-icon">🔭</span>
           <span className="tl-brand-name">TokenLens</span>
+          <span className="tl-brand-version">v0.1.0</span>
         </div>
         <div className="tl-header-actions">
           <span className="tl-status-label">{statusText}</span>
@@ -228,7 +241,6 @@ export default function App() {
             className={`tl-btn-icon${isLoading ? ' spinning' : ''}`}
             onClick={refreshAll}
             title="Refresh all (R)"
-            aria-label="Refresh all providers"
           >
             <RefreshIcon />
           </button>
@@ -236,14 +248,16 @@ export default function App() {
             className="tl-btn-icon"
             onClick={() => postMessage({ type: 'openSettings' })}
             title="Open settings"
-            aria-label="Open TokenLens settings"
           >
             <SettingsIcon />
           </button>
         </div>
       </header>
 
-      {/* Tab bar */}
+      {/* Currency Switcher Bar */}
+      <CurrencySwitcher currency={currency} onCurrencyChange={handleCurrencyChange} />
+
+      {/* Navigation Tabs */}
       <nav className="tl-tabs" role="tablist">
         {TABS.map((tab) => (
           <button
@@ -253,17 +267,18 @@ export default function App() {
             className={`tl-tab-btn${activeTab === tab.id ? ' active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
-            {tab.label}
+            <span className="tl-tab-icon">{tab.icon}</span>
+            <span>{tab.label}</span>
           </button>
         ))}
       </nav>
 
-      {/* Main content */}
+      {/* Main Content Area */}
       <main className="tl-main">
-        {/* ── Overview ── */}
+        {/* ── Overview & Quotas ── */}
         {activeTab === 'overview' && (
           <div className="tl-tab-content">
-            {/* Time range picker */}
+            {/* Range Selector */}
             <div className="tl-range-row">
               {(['today', 'thisWeek', 'thisMonth', 'lastMonth'] as TimeRangeKind[]).map((kind) => (
                 <button
@@ -279,17 +294,39 @@ export default function App() {
               ))}
             </div>
 
-            {/* Provider cards */}
+            {/* Quick KPI Strip */}
+            <div className="tl-totals-strip">
+              <div className="tl-total-item">
+                <span className="tl-total-label">Total Spend ({currency.code})</span>
+                <strong className="tl-total-value">{formattedTotalCost}</strong>
+              </div>
+              <div className="tl-total-item">
+                <span className="tl-total-label">AI Sessions</span>
+                <strong className="tl-total-value">{summary.totals.sessions.toLocaleString()}</strong>
+              </div>
+              <div className="tl-total-item">
+                <span className="tl-total-label">Cache Hit Rate</span>
+                <strong className="tl-total-value text-green">
+                  {summary.cacheAnalytics.hitRatePercent}%
+                </strong>
+              </div>
+              <div className="tl-total-item">
+                <span className="tl-total-label">Active Models</span>
+                <strong className="tl-total-value text-purple">{summary.totals.activeModels}</strong>
+              </div>
+            </div>
+
+            {/* Provider Rate Limits & Reset Countdowns */}
             {isLoading && providers.length === 0 ? (
               <div className="tl-loading-state">
-                <div className="tl-skeleton" style={{ height: 80, marginBottom: 8 }} />
-                <div className="tl-skeleton" style={{ height: 80, marginBottom: 8 }} />
-                <div className="tl-skeleton" style={{ height: 80 }} />
+                <div className="tl-skeleton" style={{ height: 90, marginBottom: 8 }} />
+                <div className="tl-skeleton" style={{ height: 90, marginBottom: 8 }} />
+                <div className="tl-skeleton" style={{ height: 90 }} />
               </div>
             ) : providers.length === 0 ? (
               <div className="tl-empty-state">
                 <span className="tl-empty-icon">🔭</span>
-                <p>No providers loaded yet.</p>
+                <p>No AI providers connected.</p>
                 <button className="tl-empty-cta" onClick={refreshAll}>
                   Refresh Now
                 </button>
@@ -300,55 +337,51 @@ export default function App() {
                   <ProviderCard
                     key={result.id}
                     result={result}
+                    currency={currency}
                     refreshing={refreshingIds.has(result.id)}
                   />
                 ))}
               </div>
             )}
-
-            {/* Summary totals strip */}
-            {summary.totals.records > 0 && (
-              <div className="tl-totals-strip">
-                <div className="tl-total-item">
-                  <span className="tl-total-label">Total Cost</span>
-                  <span className="tl-total-value">
-                    {summary.totals.cost
-                      ? `$${summary.totals.cost.amount.toFixed(2)}`
-                      : '—'}
-                  </span>
-                </div>
-                <div className="tl-total-item">
-                  <span className="tl-total-label">Records</span>
-                  <span className="tl-total-value">{summary.totals.records.toLocaleString()}</span>
-                </div>
-                <div className="tl-total-item">
-                  <span className="tl-total-label">Sessions</span>
-                  <span className="tl-total-value">{summary.totals.sessions.toLocaleString()}</span>
-                </div>
-                <div className="tl-total-item">
-                  <span className="tl-total-label">Models</span>
-                  <span className="tl-total-value">{summary.totals.activeModels}</span>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ── Trend ── */}
+        {/* ── Trend Chart ── */}
         {activeTab === 'trend' && (
           <div className="tl-tab-content">
             <TrendChart summary={summary} metric="cost" />
           </div>
         )}
 
-        {/* ── Leaderboard ── */}
+        {/* ── Prompt Cache Analyzer ── */}
+        {activeTab === 'cache' && (
+          <div className="tl-tab-content">
+            <CacheAnalyzer cache={summary.cacheAnalytics} currency={currency} />
+          </div>
+        )}
+
+        {/* ── AI Cost Optimization Advisor ── */}
+        {activeTab === 'insights' && (
+          <div className="tl-tab-content">
+            <OptimizationTips tips={summary.optimizationTips} currency={currency} />
+          </div>
+        )}
+
+        {/* ── Model Leaderboard ── */}
         {activeTab === 'leaderboard' && (
           <div className="tl-tab-content">
             <ModelLeaderboard summary={summary} />
           </div>
         )}
 
-        {/* ── ROI ── */}
+        {/* ── Workspace / Project Breakdown ── */}
+        {activeTab === 'projects' && (
+          <div className="tl-tab-content">
+            <ProjectBreakdown projects={summary.projectSplit} currency={currency} />
+          </div>
+        )}
+
+        {/* ── ROI Calculator & Share Card ── */}
         {activeTab === 'roi' && (
           <div className="tl-tab-content">
             <ROICard roi={roi} onRateChange={handleROIRateChange} />
@@ -356,15 +389,22 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Budget ── */}
+        {/* ── Smart Budget ── */}
         {activeTab === 'budget' && (
           <div className="tl-tab-content">
             <BudgetMeter budget={budget} onBudgetChange={handleBudgetChange} />
           </div>
         )}
+
+        {/* ── Data Export ── */}
+        {activeTab === 'export' && (
+          <div className="tl-tab-content">
+            <ExportModal />
+          </div>
+        )}
       </main>
 
-      {/* Footer hint */}
+      {/* Footer */}
       <footer className="tl-footer">
         <span>Press <kbd>R</kbd> to refresh · Arrow keys cycle tabs · 🔒 100% Local</span>
       </footer>

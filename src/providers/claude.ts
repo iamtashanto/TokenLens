@@ -1,7 +1,6 @@
 import * as fs from 'fs';
-import * as vscode from 'vscode';
-import type { MetricLine, ProgressLine, ProviderResult } from '../types/index.js';
-import { ProviderInterface, errorResult } from './base.js';
+import type { MetricLine, ProviderResult } from '../types/index.js';
+import { ProviderInterface, errorResult, clamp } from './base.js';
 import { getClaudeCredentialsPath } from '../util/platform.js';
 import { SecretStore, SECRET_KEYS } from '../util/secrets.js';
 import { httpGetJson, httpPostJson, withTimeout } from '../util/http.js';
@@ -100,7 +99,6 @@ export class ClaudeProvider implements ProviderInterface {
         if (oauth?.accessToken) {
           token = oauth.accessToken;
           plan = oauth.subscriptionType ? capitalize(oauth.subscriptionType) : undefined;
-          // Auto refresh token if expiring within 5 minutes
           if (oauth.expiresAt && Date.now() >= oauth.expiresAt - 300_000 && oauth.refreshToken) {
             try {
               token = await this.refreshAccessToken(oauth.refreshToken);
@@ -127,33 +125,62 @@ export class ClaudeProvider implements ProviderInterface {
 
     const lines: MetricLine[] = [];
 
-    // 5-Hour Session window
+    // 1. 5-Hour Session Window
     const sessionPct = data.five_hour?.utilization ?? data.five_hour?.used_percentage;
     if (sessionPct != null) {
       lines.push({
         type: 'progress',
-        label: 'Session (5h)',
-        used: sessionPct,
+        label: 'Session Limit',
+        used: clamp(sessionPct, 0, 100),
         limit: 100,
         format: { kind: 'percent' },
         resetsAt: data.five_hour?.resets_at ?? null,
+        resetPeriodLabel: '5-Hour Window',
       });
     }
 
-    // 7-Day Weekly window
+    // 2. 7-Day Weekly Window
     const weeklyPct = data.seven_day?.utilization ?? data.seven_day?.used_percentage;
     if (weeklyPct != null) {
       lines.push({
         type: 'progress',
-        label: 'Weekly (7d)',
-        used: weeklyPct,
+        label: 'Weekly Limit',
+        used: clamp(weeklyPct, 0, 100),
         limit: 100,
         format: { kind: 'percent' },
         resetsAt: data.seven_day?.resets_at ?? null,
+        resetPeriodLabel: '7-Day Weekly',
       });
     }
 
-    // Extra usage (dollar-based)
+    // 3. Sonnet / Opus specific rate limits if present
+    const sonnetPct = data.seven_day_sonnet?.utilization ?? data.seven_day_sonnet?.used_percentage;
+    if (sonnetPct != null) {
+      lines.push({
+        type: 'progress',
+        label: 'Sonnet Weekly',
+        used: clamp(sonnetPct, 0, 100),
+        limit: 100,
+        format: { kind: 'percent' },
+        resetsAt: data.seven_day_sonnet?.resets_at ?? null,
+        resetPeriodLabel: 'Weekly Sonnet',
+      });
+    }
+
+    const opusPct = data.seven_day_opus?.utilization ?? data.seven_day_opus?.used_percentage;
+    if (opusPct != null) {
+      lines.push({
+        type: 'progress',
+        label: 'Opus Weekly',
+        used: clamp(opusPct, 0, 100),
+        limit: 100,
+        format: { kind: 'percent' },
+        resetsAt: data.seven_day_opus?.resets_at ?? null,
+        resetPeriodLabel: 'Weekly Opus',
+      });
+    }
+
+    // 4. Extra usage (dollar-based)
     if (data.extra_usage?.is_enabled === true) {
       const used = (data.extra_usage.used_credits ?? 0) / 100;
       const limit = (data.extra_usage.monthly_limit ?? 0) / 100;
@@ -164,7 +191,7 @@ export class ClaudeProvider implements ProviderInterface {
           used,
           limit,
           format: { kind: 'dollars' },
-          resetsAt: null,
+          resetPeriodLabel: 'Monthly Spend Limit',
         });
       }
     }
@@ -185,7 +212,11 @@ export class ClaudeProvider implements ProviderInterface {
       brandColor: this.brandColor,
       plan: plan ?? 'Pro',
       lines,
+      quotaSummary: {
+        primaryPercent: sessionPct ?? weeklyPct,
+        primaryResetIso: data.five_hour?.resets_at ?? data.seven_day?.resets_at,
+        primaryResetLabel: sessionPct != null ? '5h Session' : 'Weekly',
+      },
     };
   }
 }
-

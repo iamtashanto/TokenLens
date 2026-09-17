@@ -110,40 +110,59 @@ export class CursorProvider implements ProviderInterface {
     const lines: MetricLine[] = [];
     const pu = usage.planUsage;
     const resetsAt = msToIso(usage.billingCycleEnd);
+    let totalSpendDollars = 0;
+    let primaryPercent: number | undefined;
 
     if (pu) {
       const limit = Number(pu.limit ?? 0);
       if (limit > 0) {
         // Dollar-based plan
         const totalSpend = pu.totalSpend ?? (limit - (pu.remaining ?? 0));
+        totalSpendDollars = centsToD(totalSpend);
+        primaryPercent = Math.round((totalSpend / limit) * 100);
         lines.push({
           type: 'progress',
-          label: 'Plan Usage',
-          used: centsToD(totalSpend),
+          label: 'Plan Spend',
+          used: totalSpendDollars,
           limit: centsToD(limit),
           format: { kind: 'dollars' },
           resetsAt,
+          resetPeriodLabel: 'Monthly Billing Cycle',
         });
       } else {
         // Percentage-based plan
         if (pu.totalPercentUsed != null) {
+          primaryPercent = clamp(Number(pu.totalPercentUsed), 0, 100);
           lines.push({
             type: 'progress',
             label: 'Included Usage',
-            used: clamp(Number(pu.totalPercentUsed), 0, 100),
+            used: primaryPercent,
             limit: 100,
             format: { kind: 'percent' },
             resetsAt,
+            resetPeriodLabel: 'Monthly Billing Cycle',
           });
         }
         if (pu.autoPercentUsed != null && Number(pu.autoPercentUsed) > 0) {
           lines.push({
             type: 'progress',
-            label: 'Auto',
+            label: 'Auto Requests',
             used: clamp(Number(pu.autoPercentUsed), 0, 100),
             limit: 100,
             format: { kind: 'percent' },
             resetsAt,
+            resetPeriodLabel: 'Monthly',
+          });
+        }
+        if (pu.apiPercentUsed != null && Number(pu.apiPercentUsed) > 0) {
+          lines.push({
+            type: 'progress',
+            label: 'API Requests',
+            used: clamp(Number(pu.apiPercentUsed), 0, 100),
+            limit: 100,
+            format: { kind: 'percent' },
+            resetsAt,
+            resetPeriodLabel: 'Monthly',
           });
         }
       }
@@ -155,13 +174,15 @@ export class CursorProvider implements ProviderInterface {
       const limit = Number(su.individualLimit ?? su.pooledLimit ?? 0);
       const remaining = Number(su.individualRemaining ?? su.pooledRemaining ?? 0);
       if (limit > 0) {
+        const onDemandSpend = centsToD(limit - remaining);
+        totalSpendDollars += onDemandSpend;
         lines.push({
           type: 'progress',
-          label: 'On-Demand',
-          used: centsToD(limit - remaining),
+          label: 'On-Demand Spend',
+          used: onDemandSpend,
           limit: centsToD(limit),
           format: { kind: 'dollars' },
-          resetsAt: null,
+          resetPeriodLabel: 'Spend Limit',
         });
       }
     }
@@ -184,6 +205,12 @@ export class CursorProvider implements ProviderInterface {
       brandColor: this.brandColor,
       plan: planLabel,
       lines,
+      quotaSummary: {
+        primaryPercent,
+        primaryResetIso: resetsAt,
+        primaryResetLabel: 'Billing Cycle',
+        monthlySpendUsd: totalSpendDollars,
+      },
     };
   }
 }
