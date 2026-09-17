@@ -65,7 +65,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const registry = new ProviderRegistry();
   registry.register(new ClaudeProvider(secretStore));
   registry.register(new CursorProvider());
-  registry.register(new CopilotProvider());
+  registry.register(new CopilotProvider(secretStore));
   registry.register(new CodexProvider());
   registry.register(new WindsurfProvider());
   registry.register(new AntigravityProvider(secretStore));
@@ -472,6 +472,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
     vscode.commands.registerCommand('tokenlens.setAntigravityToken', () =>
       promptSecret(SECRET_KEYS.ANTIGRAVITY_TOKEN, 'Antigravity OAuth Token', 'ya29....'),
+    ),
+    vscode.commands.registerCommand('tokenlens.setGitHubToken', () =>
+      promptSecret('github.token', 'GitHub Personal Access Token (PAT)', 'ghp_... / gho_...'),
     ),
     vscode.commands.registerCommand('tokenlens.clearSecrets', async () => {
       const confirm = await vscode.window.showWarningMessage(

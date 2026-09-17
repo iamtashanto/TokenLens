@@ -133,6 +133,10 @@
         "title": "TokenLens: Set Antigravity OAuth Token"
       },
       {
+        "command": "tokenlens.setGitHubToken",
+        "title": "TokenLens: Set GitHub / Copilot Token (Optional)"
+      },
+      {
         "command": "tokenlens.clearSecrets",
         "title": "TokenLens: Clear All Secrets"
       }
