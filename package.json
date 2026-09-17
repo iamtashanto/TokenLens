@@ -90,7 +90,11 @@
       },
       {
         "command": "tokenlens.cycleStatusBar",
-        "title": "TokenLens: Select Status Bar Provider"
+        "title": "TokenLens: Select Pinned Status Bar Provider"
+      },
+      {
+        "command": "tokenlens.configureStatusBar",
+        "title": "TokenLens: Show / Hide Status Bar Providers"
       },
       {
         "command": "tokenlens.exportCSV",
@@ -297,16 +301,25 @@
         "tokenlens.display.statusBarProvider": {
           "type": "string",
           "default": "",
-          "description": "Provider ID to pin in the status bar. Empty = auto-select first connected."
+          "description": "Provider ID to pin in the status bar. Empty = auto-select all active unhidden providers."
+        },
+        "tokenlens.display.hiddenStatusBarProviders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of provider IDs to hide from the status bar."
         },
         "tokenlens.display.statusBarStyle": {
           "type": "string",
           "enum": [
-            "blocks",
+            "circle",
             "percent",
+            "blocks",
             "minimal"
           ],
-          "default": "blocks",
+          "default": "circle",
           "description": "Status bar progress display style."
         },
         "tokenlens.autoDetectLocalSources": {

@@ -402,6 +402,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('tokenlens.cycleStatusBar', () => {
       statusBar.selectProvider();
     }),
+    vscode.commands.registerCommand('tokenlens.configureStatusBar', () => {
+      statusBar.configureVisibility();
+    }),
     vscode.commands.registerCommand('tokenlens.setBudget', async () => {
       const input = await vscode.window.showInputBox({
         prompt: 'Enter monthly AI spending budget in USD',

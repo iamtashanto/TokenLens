@@ -1,19 +1,13 @@
 # 🔭 TokenLens — All-in-One AI Usage, Quota & Cost Intelligence
 
-<p align="center">
-  <img src="resources/icon.png" width="100" alt="TokenLens Icon" />
-</p>
+![TokenLens Icon](resources/icon.png)
 
-<p align="center">
-  <strong>"See the true cost, quota limits, and engineering impact of every AI model you use — in one place."</strong>
-</p>
+> **"See the true cost, quota limits, and engineering impact of every AI model you use — in one place."**
 
-<p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=tokenlens.tokenlens"><img src="https://img.shields.io/badge/VS%20Code-v1.90+-007ACC?logo=visualstudiocode&logoColor=white" alt="VS Code Version" /></a>
-  <a href="#privacy"><img src="https://img.shields.io/badge/Privacy-100%25%20Local-22c55e?logo=shield&logoColor=white" alt="100% Local" /></a>
-  <a href="#currency"><img src="https://img.shields.io/badge/Currency-USD%20%7C%20BDT%20%7C%20EUR%20%7C%20GBP%20%7C%20INR%20%7C%20JPY-6D5DF6" alt="Currencies" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
-</p>
+[![VS Code Version](https://img.shields.io/badge/VS%20Code-v1.90+-007ACC?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=tokenlens.tokenlens)
+[![100% Local](https://img.shields.io/badge/Privacy-100%25%20Local-22c55e?logo=shield&logoColor=white)](#privacy)
+[![Currencies](https://img.shields.io/badge/Currency-USD%20%7C%20BDT%20%7C%20EUR%20%7C%20GBP%20%7C%20INR%20%7C%20JPY-6D5DF6)](#currency)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
@@ -22,16 +16,12 @@
 ### 1. Interactive AI Quotas & Cost Intelligence Dashboard
 Track your real-time spend, session count, prompt cache hit rate %, and multi-window quota meters across all active AI coding tools:
 
-<p align="center">
-  <img src="resources/screenshots/dashboard.png" width="850" alt="TokenLens Interactive Dashboard" />
-</p>
+![TokenLens Interactive Dashboard](resources/screenshots/dashboard.png)
 
 ### 2. Multi-Window Quota Tracking & Live Reset Countdowns (Antigravity, Codex, Cursor)
 Monitor your exact remaining quota pools for Gemini Models (Weekly & 5-Hour limits), Claude/GPT models, and reset countdowns in real-time:
 
-<p align="center">
-  <img src="resources/screenshots/antigravity_quota.png" width="550" alt="Antigravity Live Multi-Window Quota Monitor" />
-</p>
+![Antigravity Live Multi-Window Quota Monitor](resources/screenshots/antigravity_quota.png)
 
 ---
 

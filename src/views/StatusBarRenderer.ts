@@ -29,7 +29,7 @@ export const PROVIDER_PRIORITIES: Record<string, number> = {
   groq: 100,
 };
 
-export type StatusBarStyle = 'compact' | 'blocks' | 'percent' | 'minimal';
+export type StatusBarStyle = 'circle' | 'compact' | 'blocks' | 'percent' | 'minimal';
 
 /** Compact 5-block micro meter: █░░░░ */
 export function renderMicroBlocks(pct: number): string {
@@ -69,11 +69,13 @@ export function getPrimaryPercent(result: ProviderResult): number | undefined {
   const progressLines = result.lines.filter((l) => l.type === 'progress');
   if (progressLines.length === 0) return undefined;
 
-  // If Antigravity, look for Gemini Flash / primary model first
+  // If Antigravity, look for Gemini Models 5-Hour Limit or first Gemini line
   if (result.id === 'antigravity') {
-    const flash = progressLines.find((l) => /flash/i.test(l.label));
-    if (flash && flash.type === 'progress') {
-      return flash.format.kind === 'percent' ? flash.used : (flash.used / flash.limit) * 100;
+    const gemini = progressLines.find(
+      (l) => /gemini.*5-hour/i.test(l.label) || /gemini/i.test(l.label),
+    );
+    if (gemini && gemini.type === 'progress') {
+      return gemini.format.kind === 'percent' ? gemini.used : (gemini.used / gemini.limit) * 100;
     }
   }
 
@@ -87,35 +89,50 @@ export function getPrimaryPercent(result: ProviderResult): number | undefined {
       : 0;
 }
 
-/** Get goal circle indicator based on status and percent */
-export function getCircleIcon(pct?: number, hasError?: boolean): string {
-  if (hasError) return '$(circle-slash)';
-  if (pct === undefined) return '$(circle-filled)';
-  if (pct >= 95) return '$(circle-filled)';
-  if (pct >= 80) return '$(circle-filled)';
-  return '$(circle-filled)';
+/**
+ * Dynamic Circular Progress Gauge:
+ * ○ (0 - 15%)
+ * ◔ (16 - 39%)
+ * ◑ (40 - 64%)
+ * ◕ (65 - 89%)
+ * ● (90 - 100%)
+ */
+export function getCircleGauge(pct?: number, hasError?: boolean): string {
+  if (hasError) return '⊘';
+  if (pct === undefined) return '●';
+  if (pct < 15) return '○';
+  if (pct < 40) return '◔';
+  if (pct < 65) return '◑';
+  if (pct < 90) return '◕';
+  return '●';
 }
 
 /**
- * Render single provider status bar label with circle indicator:
- * e.g. "$(circle-filled) AG 45%", "$(circle-filled) Codex 21%", "$(circle-filled) Copilot ✓"
+ * Render single provider status bar label with circle gauge:
+ * e.g. "◕ AG 73%", "◔ Codex 21%", "● Copilot ✓"
  */
 export function renderProviderStatusBarText(
   result: ProviderResult,
-  style: StatusBarStyle = 'compact',
+  style: StatusBarStyle = 'circle',
 ): string {
   const shortName = PROVIDER_SHORT_NAMES[result.id] ?? result.name.split(' ')[0];
   if (result.error) {
-    return `$(circle-slash) ${shortName}`;
+    return `⊘ ${shortName}`;
   }
 
   const pct = getPrimaryPercent(result);
-  const circle = getCircleIcon(pct, !!result.error);
+  const circle = getCircleGauge(pct, !!result.error);
 
   if (pct !== undefined) {
     const rounded = Math.round(pct);
     if (style === 'blocks') {
       return `${circle} ${shortName} ${renderMicroBlocks(rounded)} ${rounded}%`;
+    }
+    if (style === 'percent') {
+      return `${shortName} ${rounded}%`;
+    }
+    if (style === 'minimal') {
+      return `${circle} ${shortName}`;
     }
     return `${circle} ${shortName} ${rounded}%`;
   }
@@ -215,7 +232,7 @@ export function renderProviderTooltip(
   // Action links
   md.appendMarkdown('\n---\n\n');
   md.appendMarkdown(
-    `[$(graph) Open Dashboard](command:tokenlens.openDashboard)  •  [$(refresh) Refresh](command:tokenlens.refresh)  •  [$(gear) Settings](command:tokenlens.openSettings)\n`,
+    `[$(graph) Dashboard](command:tokenlens.openDashboard)  •  [$(eye) Show/Hide](command:tokenlens.configureStatusBar)  •  [$(refresh) Refresh](command:tokenlens.refresh)  •  [$(gear) Settings](command:tokenlens.openSettings)\n`,
   );
 
   return md;
@@ -263,7 +280,7 @@ export function renderOverviewTooltip(
     `💰 **Budget:** \$${budget.currentSpend.toFixed(2)} / \$${budget.monthly.toFixed(2)} (${budget.percent}%)\n\n`,
   );
   md.appendMarkdown(
-    `[$(graph) Open Dashboard](command:tokenlens.openDashboard)  •  [$(refresh) Refresh](command:tokenlens.refresh)  •  [$(gear) Settings](command:tokenlens.openSettings)\n`,
+    `[$(graph) Open Dashboard](command:tokenlens.openDashboard)  •  [$(eye) Show/Hide Providers](command:tokenlens.configureStatusBar)  •  [$(refresh) Refresh](command:tokenlens.refresh)\n`,
   );
 
   return md;

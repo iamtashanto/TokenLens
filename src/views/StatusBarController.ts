@@ -58,17 +58,13 @@ export class StatusBarController implements vscode.Disposable {
     this.render();
   }
 
-  /** Get active providers (with progress lines or connected state) */
+  /** Get active providers (with progress lines or connected state, excluding hidden ones) */
   private getActiveResults(): ProviderResult[] {
     const config = vscode.workspace.getConfiguration('tokenlens');
-    const pinned = config.get<string>('display.statusBarProvider', '');
-
-    if (pinned) {
-      const found = this.results.find((r) => r.id === pinned);
-      if (found) return [found];
-    }
+    const hidden = new Set(config.get<string[]>('display.hiddenStatusBarProviders', []));
 
     const active = this.results.filter((r) => {
+      if (hidden.has(r.id)) return false;
       if (r.error) return false;
       const hasProgress = r.lines.some((l) => l.type === 'progress');
       const hasActiveBadge = r.lines.some(
@@ -80,7 +76,7 @@ export class StatusBarController implements vscode.Disposable {
       return hasProgress || hasActiveBadge;
     });
 
-    return active.length > 0 ? active : this.results.slice(0, 1);
+    return active;
   }
 
   /** Re-render all status bar items */
@@ -97,7 +93,7 @@ export class StatusBarController implements vscode.Disposable {
     const activeResults = this.getActiveResults();
     const style = vscode.workspace
       .getConfiguration('tokenlens')
-      .get<StatusBarStyle>('display.statusBarStyle', 'compact');
+      .get<StatusBarStyle>('display.statusBarStyle', 'circle');
 
     if (activeResults.length === 0) {
       this.fallbackItem.text = '$(telescope) TokenLens';
@@ -134,7 +130,7 @@ export class StatusBarController implements vscode.Disposable {
       item.show();
     }
 
-    // Hide any items for inactive providers
+    // Hide any items for inactive or hidden providers
     for (const [id, item] of this.providerItems.entries()) {
       if (!activeIds.has(id)) {
         item.hide();
@@ -142,42 +138,50 @@ export class StatusBarController implements vscode.Disposable {
     }
   }
 
-  /** QuickPick to allow user to select a pinned provider or auto */
-  async selectProvider(): Promise<void> {
+  /** Multi-select QuickPick to show/hide specific providers in status bar */
+  async configureVisibility(): Promise<void> {
     if (this.results.length === 0) {
       vscode.window.showInformationMessage('TokenLens: No provider data yet. Please refresh first.');
       return;
     }
 
-    const items: vscode.QuickPickItem[] = [
-      {
-        label: '$(telescope) Auto (Show all active providers)',
-        description: 'Displays individual circular indicators for each active provider',
-        detail: '',
-      },
-      ...this.results.map((r) => {
-        const pct = getPrimaryPercent(r);
-        const pctStr = pct !== undefined ? ` — ${Math.round(pct)}%` : '';
-        const short = PROVIDER_SHORT_NAMES[r.id] ?? r.name;
-        return {
-          label: `$(tokenlens-${r.id}) ${r.name} [${short}]${pctStr}`,
-          description: r.error ? `Error: ${r.error}` : r.plan ?? '',
-          detail: r.id,
-        };
-      }),
-    ];
+    const config = vscode.workspace.getConfiguration('tokenlens');
+    const hidden = new Set(config.get<string[]>('display.hiddenStatusBarProviders', []));
+
+    const items: Array<vscode.QuickPickItem & { providerId: string }> = this.results.map((r) => {
+      const pct = getPrimaryPercent(r);
+      const pctStr = pct !== undefined ? ` • ${Math.round(pct)}%` : '';
+      const short = PROVIDER_SHORT_NAMES[r.id] ?? r.name;
+      return {
+        label: `${r.name} [${short}]`,
+        description: r.plan ? `${r.plan}${pctStr}` : pctStr,
+        detail: `ID: ${r.id}`,
+        picked: !hidden.has(r.id),
+        providerId: r.id,
+      };
+    });
 
     const picked = await vscode.window.showQuickPick(items, {
-      title: 'TokenLens: Select Status Bar Provider',
-      placeHolder: 'Choose which provider(s) to display in the status bar',
+      canPickMany: true,
+      title: 'TokenLens: Show / Hide Status Bar Providers',
+      placeHolder: 'Select the AI providers you want to display in the status bar',
     });
 
     if (!picked) return;
 
-    const config = vscode.workspace.getConfiguration('tokenlens');
-    const newId = picked.detail === '' ? '' : (picked.detail ?? '');
-    await config.update('display.statusBarProvider', newId, vscode.ConfigurationTarget.Global);
+    const selectedIds = new Set(picked.map((p) => p.providerId));
+    const newHidden = this.results
+      .map((r) => r.id)
+      .filter((id) => !selectedIds.has(id));
+
+    await config.update('display.hiddenStatusBarProviders', newHidden, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`TokenLens: Status bar updated (${picked.length} visible).`);
     this.render();
+  }
+
+  /** QuickPick to allow user to configure status bar provider visibility */
+  async selectProvider(): Promise<void> {
+    return this.configureVisibility();
   }
 
   setLoading(loading: boolean): void {

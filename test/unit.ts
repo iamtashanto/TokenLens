@@ -148,9 +148,9 @@ async function runTests() {
       },
     ],
   };
-  const agText = renderProviderStatusBarText(dummyAgResult, 'compact');
+  const agText = renderProviderStatusBarText(dummyAgResult, 'circle');
   assert(agText.includes('AG 45%'), 'StatusBar text should include AG 45%');
-  assert(agText.includes('$(circle-filled)'), 'StatusBar text should have circle icon');
+  assert(agText.includes('◑') || agText.includes('●') || agText.includes('◕'), 'StatusBar text should have circle gauge glyph');
 
   const agTooltip = renderProviderTooltip(dummyAgResult, stateSafe);
   assert(agTooltip.value.includes('TokenLens'), 'Tooltip should contain TokenLens');
