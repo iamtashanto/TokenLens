@@ -405,8 +405,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run build",
-    "build": "npm run build:extension && npm run build:webview",
+    "build": "pnpm run build:extension && pnpm run build:webview",
     "build:extension": "node esbuild.config.mjs",
     "build:webview": "vite build --config vite.config.webview.ts",
     "compile": "tsc --noEmit",
