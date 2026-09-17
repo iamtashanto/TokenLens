@@ -151,3 +151,4 @@ export class StatusBarController implements vscode.Disposable {
     for (const d of this.disposables) d.dispose();
   }
 }
+

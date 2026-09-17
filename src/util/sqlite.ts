@@ -66,3 +66,4 @@ export async function queryDb<T = Record<string, unknown>>(
 export async function isSqliteAvailable(): Promise<boolean> {
   return (await getDatabase()) !== null;
 }
+

@@ -59,3 +59,4 @@ export function toFiniteNumber(value: unknown): number | undefined {
   const n = Number(value);
   return isFinite(n) ? n : undefined;
 }
+

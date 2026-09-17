@@ -197,3 +197,4 @@ export function renderTooltip(
 export function formatDollars(amount: number): string {
   return `\$${amount.toFixed(2)}`;
 }
+

@@ -23,3 +23,4 @@ export class ProviderRegistry {
     return this.providers.map((p) => p.id);
   }
 }
+

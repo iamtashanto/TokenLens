@@ -19,3 +19,4 @@ All notable changes to TokenLens will be documented in this file.
 - **Auto-refresh** with configurable intervals (1m, 2m, 5m, 15m, 30m)
 - **Local source auto-detection** for JSONL log files
 - 100% local — no telemetry, no data leaves your machine
+

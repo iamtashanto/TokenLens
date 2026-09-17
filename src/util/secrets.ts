@@ -33,3 +33,4 @@ export const SECRET_KEYS = {
   MISTRAL_COOKIE: 'mistral.adminCookie',
   ANTIGRAVITY_TOKEN: 'antigravity.oauthToken',
 } as const;
+

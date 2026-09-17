@@ -288,3 +288,4 @@ export type DisplayCurrencyState = {
   rate: number; // multiplier from USD
   source: 'manual' | 'public' | 'fallback';
 };
+

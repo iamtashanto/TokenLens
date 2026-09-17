@@ -217,3 +217,4 @@ export function getGrokCliDbPath(): string | null {
 export function firstExisting(paths: string[]): string | null {
   return paths.find((p) => fs.existsSync(p)) ?? null;
 }
+

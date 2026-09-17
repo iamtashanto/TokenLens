@@ -24,3 +24,4 @@ if (watch) {
   await esbuild.build(extensionConfig);
   console.log('[esbuild] Extension built.');
 }
+

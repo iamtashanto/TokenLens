@@ -112,3 +112,4 @@ export class DashboardWebviewProvider implements vscode.WebviewViewProvider, vsc
     for (const d of this.disposables) d.dispose();
   }
 }
+
