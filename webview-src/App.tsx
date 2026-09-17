@@ -253,7 +253,7 @@ export default function App() {
         <div className="tl-header-brand">
           <span className="tl-brand-icon">🔭</span>
           <span className="tl-brand-name">TokenLens</span>
-          <span className="tl-brand-version">v0.1.0</span>
+          <span className="tl-brand-version">v0.1.1</span>
         </div>
         <div className="tl-header-actions">
           <span className="tl-status-label">{statusText}</span>
