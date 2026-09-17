@@ -107,3 +107,4 @@ export default function ROICard({ roi, onRateChange }: ROICardProps) {
     </div>
   );
 }
+

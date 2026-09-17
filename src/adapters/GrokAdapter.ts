@@ -74,3 +74,4 @@ export class GrokAdapter extends JsonUsageAdapter {
     return null;
   }
 }
+

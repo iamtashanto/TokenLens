@@ -51,3 +51,4 @@ export class AutoRefreshService {
     this.start();
   }
 }
+

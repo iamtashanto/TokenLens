@@ -151,3 +151,4 @@ export default function TrendChart({ summary, metric: initialMetric = 'cost' }: 
     </div>
   );
 }
+

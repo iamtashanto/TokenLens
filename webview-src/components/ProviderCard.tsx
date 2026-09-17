@@ -131,3 +131,4 @@ export default function ProviderCard({ result, refreshing }: ProviderCardProps) 
     </div>
   );
 }
+

@@ -96,3 +96,4 @@ export default function ShareCard({ summary, budget, roi }: ShareCardProps) {
     </div>
   );
 }
+

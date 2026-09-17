@@ -3,9 +3,8 @@
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-node_modules
-dist
-out
+node_modules/**
+out/**
 src/**
 webview-src/**
 refs/**
@@ -14,4 +13,4 @@ refs/**
 tsconfig.json
 esbuild.config.mjs
 vite.config.webview.ts
-
+pnpm-lock.yaml
