@@ -4,7 +4,7 @@ import type { ProviderResult, AlertLevel, BudgetState } from '../types/index.js'
 /**
  * Status bar display style type
  */
-type StatusBarStyle = 'blocks' | 'percent' | 'minimal';
+type StatusBarStyle = 'blocks' | 'dots' | 'percent' | 'minimal';
 
 /** Render progress bar in blocks style: ████████░░░░ 75% */
 export function renderProgressBlocks(pct: number): string {

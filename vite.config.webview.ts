@@ -6,12 +6,13 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist/webview',
+    cssCodeSplit: false,
     rollupOptions: {
       input: resolve(__dirname, 'webview-src/index.tsx'),
       output: {
         entryFileNames: 'main.js',
         chunkFileNames: '[name].js',
-        assetFileNames: '[name].[ext]',
+        assetFileNames: 'main.[ext]',
         format: 'iife',
       },
     },

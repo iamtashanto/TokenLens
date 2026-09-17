@@ -104,7 +104,7 @@ export class CursorProvider implements ProviderInterface {
         `${BASE_URL}/aiserver.v1.DashboardService/GetPlanInfo`,
         {},
         { headers },
-      ).catch(() => ({})),
+      ).catch(() => ({} as PlanInfoResponse)),
     ]);
 
     const lines: MetricLine[] = [];

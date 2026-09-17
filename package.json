@@ -7,6 +7,10 @@
   "private": true,
   "license": "MIT",
   "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ta-shanto/TokenLens"
+  },
   "keywords": [
     "ai",
     "token",
@@ -381,6 +385,7 @@
     "@types/react-dom": "^19.0.0",
     "@types/vscode": "^1.90.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.7.0",
     "uplot": "^1.6.32",
@@ -393,4 +398,3 @@
     "react-dom": "^19.0.0"
   }
 }
-
