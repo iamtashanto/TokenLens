@@ -86,6 +86,10 @@ export class ExchangeRateService {
     };
   }
 
+  getRate(code: string): number {
+    return this.cachedRates?.rates[code] ?? DEFAULT_RATES[code] ?? 1.0;
+  }
+
   formatCurrency(amountUsd: number, targetCode?: string): string {
     const disp = this.getDisplayCurrency();
     const code = targetCode ?? disp.code;

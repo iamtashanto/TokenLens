@@ -22,15 +22,26 @@ export class PricingService {
 
   private loadCatalog(): void {
     try {
-      // Load catalog.json bundled with the extension
-      const catalogPath = path.join(__dirname, '..', 'pricing', 'catalog.json');
-      let raw: string;
-      if (fs.existsSync(catalogPath)) {
-        raw = fs.readFileSync(catalogPath, 'utf8');
-      } else {
-        // Fallback for dev / ts-node environments
-        const altPath = path.join(__dirname, 'pricing', 'catalog.json');
-        raw = fs.readFileSync(altPath, 'utf8');
+      // Load catalog.json bundled with the extension or in source tree
+      const candidates = [
+        path.join(__dirname, '..', 'pricing', 'catalog.json'),
+        path.join(__dirname, '..', 'src', 'pricing', 'catalog.json'),
+        path.join(__dirname, 'pricing', 'catalog.json'),
+        path.join(__dirname, 'src', 'pricing', 'catalog.json'),
+        path.join(process.cwd(), 'src', 'pricing', 'catalog.json'),
+        path.join(process.cwd(), 'dist', 'pricing', 'catalog.json'),
+      ];
+
+      let raw: string | null = null;
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          raw = fs.readFileSync(p, 'utf8');
+          break;
+        }
+      }
+
+      if (!raw) {
+        throw new Error('catalog.json not found in any candidate path');
       }
 
       const catalog = JSON.parse(raw) as PricingCatalog;

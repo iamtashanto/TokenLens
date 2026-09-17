@@ -375,7 +375,7 @@
     "watch": "node esbuild.config.mjs --watch",
     "watch:webview": "vite build --config vite.config.webview.ts --watch",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js",
+    "test": "npx esbuild test/unit.ts --bundle --platform=node --outfile=dist/test.cjs --alias:vscode=./test/mock-vscode.ts --external:better-sqlite3 && node dist/test.cjs",
     "package:vsix": "vsce package --no-dependencies"
   },
   "devDependencies": {

@@ -18,6 +18,23 @@ interface WindsurfUserStatusResponse {
   };
 }
 
+interface LsDiscovery {
+  ports: number[];
+  csrf: string;
+}
+
+function extractFlag(cmd: string, flag: string): string | null {
+  const parts = cmd.split(/\s+/);
+  const eq = `${flag}=`;
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === flag && i + 1 < parts.length) return parts[i + 1];
+    if (parts[i].startsWith(eq)) return parts[i].slice(eq.length);
+  }
+  const regex = new RegExp(`${flag}[=\\s]+([^\\s"']+)`, 'i');
+  const match = regex.exec(cmd);
+  return match ? match[1] : null;
+}
+
 export class WindsurfProvider implements ProviderInterface {
   readonly id = 'windsurf';
   readonly displayName = 'Windsurf';
@@ -45,23 +62,52 @@ export class WindsurfProvider implements ProviderInterface {
     return null;
   }
 
-  private discoverLanguageServer(): { port: number; csrf: string } | null {
+  private discoverLanguageServer(): LsDiscovery | null {
     try {
-      const output = child_process.execSync(
+      const psOut = child_process.execSync(
         process.platform === 'win32'
-          ? 'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Select-Object CommandLine"'
-          : 'ps aux',
+          ? 'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Select-Object CommandLine, ProcessId"'
+          : 'ps -ax -o pid= -o command=',
         { encoding: 'utf8', timeout: 5000 },
       );
 
-      const match = /language_server.*--ide_name=windsurf.*--extension_server_port=(\d+).*--csrf_token=([a-zA-Z0-9_-]+)/i.exec(
-        output,
-      );
-      if (match) {
-        return {
-          port: parseInt(match[1], 10),
-          csrf: match[2],
-        };
+      for (const line of psOut.split('\n')) {
+        if (!line.includes('language_server') || !line.toLowerCase().includes('windsurf')) {
+          continue;
+        }
+
+        const csrf = extractFlag(line, '--csrf_token') || extractFlag(line, '--extension_server_csrf_token');
+        const extPortStr = extractFlag(line, '--extension_server_port');
+        const pidStr = line.trim().split(/\s+/)[0];
+
+        const ports: number[] = [];
+        if (extPortStr) {
+          const p = parseInt(extPortStr, 10);
+          if (!isNaN(p) && p > 0) ports.push(p);
+        }
+
+        if (pidStr && /^\d+$/.test(pidStr) && process.platform !== 'win32') {
+          try {
+            const lsofOut = child_process.execSync(`lsof -nP -iTCP -sTCP:LISTEN -a -p ${pidStr}`, {
+              encoding: 'utf8',
+              timeout: 5000,
+            });
+            const re = /:(\d+)\s+\(LISTEN\)/g;
+            let m;
+            while ((m = re.exec(lsofOut)) !== null) {
+              const port = parseInt(m[1], 10);
+              if (!isNaN(port) && port > 0 && !ports.includes(port)) {
+                ports.unshift(port);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (csrf && ports.length > 0) {
+          return { ports, csrf };
+        }
       }
     } catch {
       // ignore
@@ -81,8 +127,7 @@ export class WindsurfProvider implements ProviderInterface {
     const apiKey = await this.getApiKey();
     const ls = this.discoverLanguageServer();
 
-    if (!ls) {
-      // Fallback result if LS is not actively running but DB exists
+    if (!ls || ls.ports.length === 0) {
       if (apiKey) {
         return {
           id: this.id,
@@ -114,20 +159,56 @@ export class WindsurfProvider implements ProviderInterface {
       },
     });
 
-    const res = await httpRequest(
-      `http://127.0.0.1:${ls.port}/exa.language_server_pb.LanguageServerService/GetUserStatus`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Connect-Protocol-Version': '1',
-          'x-codeium-csrf-token': ls.csrf,
-        },
-        body: payload,
-      },
-    );
+    let data: WindsurfUserStatusResponse | null = null;
 
-    const data = JSON.parse(res.body) as WindsurfUserStatusResponse;
+    for (const port of ls.ports) {
+      for (const scheme of ['https', 'http'] as const) {
+        try {
+          const res = await httpRequest(
+            `${scheme}://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/GetUserStatus`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Connect-Protocol-Version': '1',
+                'x-codeium-csrf-token': ls.csrf,
+              },
+              body: payload,
+              timeoutMs: 4000,
+            },
+          );
+          if (res.statusCode >= 200 && res.statusCode < 300 && res.body) {
+            data = JSON.parse(res.body) as WindsurfUserStatusResponse;
+            if (data?.user) break;
+          }
+        } catch {
+          // try next port
+        }
+      }
+      if (data?.user) break;
+    }
+
+    if (!data?.user) {
+      if (apiKey) {
+        return {
+          id: this.id,
+          name: this.displayName,
+          icon: this.id,
+          brandColor: this.brandColor,
+          plan: 'Windsurf',
+          lines: [
+            {
+              type: 'badge',
+              label: 'Credits',
+              text: 'Connected',
+              color: '#22c55e',
+            },
+          ],
+        };
+      }
+      throw new Error('Could not communicate with Windsurf language server.');
+    }
+
     const planStatus = data.user?.planStatus;
     const lines: MetricLine[] = [];
 
@@ -176,4 +257,3 @@ export class WindsurfProvider implements ProviderInterface {
     };
   }
 }
-
