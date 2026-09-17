@@ -3,14 +3,18 @@
   "displayName": "TokenLens — AI Usage & Cost Tracker",
   "description": "See the true cost and impact of every AI model you use — in one place. Tracks Claude, Cursor, Copilot, Codex, Windsurf, Ollama, DeepSeek, Mistral, and Antigravity.",
   "version": "0.1.0",
-  "publisher": "tokenlens",
-  "private": true,
+  "publisher": "iamtashanto",
   "license": "MIT",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ta-shanto/TokenLens"
+    "url": "https://github.com/iamtashanto/TokenLens.git"
   },
+  "bugs": {
+    "url": "https://github.com/iamtashanto/TokenLens/issues"
+  },
+  "homepage": "https://github.com/iamtashanto/TokenLens#readme",
+  "author": "iamtashanto",
   "keywords": [
     "ai",
     "token",
