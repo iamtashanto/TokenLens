@@ -49,7 +49,10 @@ export class CopilotProvider implements ProviderInterface {
     }
 
     // 2. Environment variables
-    const envToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.COPILOT_TOKEN;
+    const env = (globalThis as typeof globalThis & {
+      process?: { env?: Record<string, string | undefined> };
+    }).process?.env;
+    const envToken = env?.GITHUB_TOKEN || env?.GH_TOKEN || env?.COPILOT_TOKEN;
     if (envToken) return envToken.trim();
 
     // 3. VS Code authentication provider sessions (try all common GitHub scopes)
