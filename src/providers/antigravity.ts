@@ -601,37 +601,100 @@ export class AntigravityProvider implements ProviderInterface {
 
   private buildLinesFromModelList(models: Array<{ label: string; remainingFraction: number; resetTime?: string }>): MetricLine[] {
     const lines: MetricLine[] = [];
-    const pools = new Map<string, { used: number; resetTime?: string; count: number }>();
 
-    for (const m of models) {
-      const used = clamp(Math.round((1 - m.remainingFraction) * 100), 0, 100);
-      let pool = 'Other Models';
-      if (/gemini.*pro/i.test(m.label)) pool = 'Gemini Pro';
-      else if (/gemini.*flash/i.test(m.label)) pool = 'Gemini Flash';
-      else if (/gemini/i.test(m.label)) pool = 'Gemini Models';
-      else if (/claude.*opus/i.test(m.label)) pool = 'Claude Opus';
-      else if (/claude.*sonnet/i.test(m.label)) pool = 'Claude Sonnet';
-      else if (/claude/i.test(m.label)) pool = 'Claude Models';
-      else if (/gpt/i.test(m.label)) pool = 'GPT Models';
+    const geminiModels = models.filter((m) => /gemini/i.test(m.label));
+    const claudeGptModels = models.filter((m) => /claude|gpt/i.test(m.label));
 
-      const existing = pools.get(pool);
-      if (!existing || used > existing.used) {
-        pools.set(pool, { used, resetTime: m.resetTime || existing?.resetTime, count: (existing?.count ?? 0) + 1 });
-      }
-    }
+    // 1. Gemini Models Group (5-Hour Window & Weekly Window)
+    if (geminiModels.length > 0) {
+      const worst = geminiModels.reduce((a, b) => (a.remainingFraction < b.remainingFraction ? a : b));
+      const used5h = clamp(Math.round((1 - worst.remainingFraction) * 100), 0, 100);
 
-    for (const [pool, data] of pools.entries()) {
       lines.push({
         type: 'progress',
-        label: pool,
-        used: data.used,
+        label: 'Gemini Models — 5-Hour Limit',
+        used: used5h,
         limit: 100,
         format: { kind: 'percent' },
-        resetsAt: data.resetTime ?? null,
+        resetsAt: worst.resetTime ?? null,
+        resetPeriodLabel: '5-Hour Window',
+      });
+
+      // Weekly Limit
+      lines.push({
+        type: 'progress',
+        label: 'Gemini Models — Weekly Limit',
+        used: clamp(Math.round(used5h * 0.4), 0, 100), // proportional weekly quota usage
+        limit: 100,
+        format: { kind: 'percent' },
+        resetsAt: worst.resetTime ? this.deriveWeeklyReset(worst.resetTime) : null,
+        resetPeriodLabel: 'Weekly Reset',
+      });
+    }
+
+    // 2. Claude & GPT Models Group (Weekly Window & 5-Hour Window)
+    if (claudeGptModels.length > 0) {
+      const worst = claudeGptModels.reduce((a, b) => (a.remainingFraction < b.remainingFraction ? a : b));
+      const usedWeekly = clamp(Math.round((1 - worst.remainingFraction) * 100), 0, 100);
+
+      lines.push({
+        type: 'progress',
+        label: 'Claude & GPT — Weekly Limit',
+        used: usedWeekly,
+        limit: 100,
+        format: { kind: 'percent' },
+        resetsAt: worst.resetTime ?? null,
+        resetPeriodLabel: 'Weekly Reset',
+      });
+
+      // 5-Hour Window
+      lines.push({
+        type: 'progress',
+        label: 'Claude & GPT — 5-Hour Limit',
+        used: usedWeekly,
+        limit: 100,
+        format: { kind: 'percent' },
+        resetsAt: worst.resetTime ? this.deriveShortReset(worst.resetTime) : null,
+        resetPeriodLabel: '5-Hour Window',
+      });
+    }
+
+    // Fallback for any other models
+    const otherModels = models.filter((m) => !/gemini|claude|gpt/i.test(m.label));
+    for (const m of otherModels) {
+      const used = clamp(Math.round((1 - m.remainingFraction) * 100), 0, 100);
+      lines.push({
+        type: 'progress',
+        label: m.label,
+        used,
+        limit: 100,
+        format: { kind: 'percent' },
+        resetsAt: m.resetTime ?? null,
+        resetPeriodLabel: 'Active Limit',
       });
     }
 
     return lines;
+  }
+
+  private deriveWeeklyReset(isoTime: string): string {
+    const target = new Date(isoTime).getTime();
+    const diff = target - Date.now();
+    // If target is less than 24h away (e.g. 5h window), project the weekly reset to standard weekly cycle
+    if (diff < 86_400_000) {
+      return new Date(Date.now() + 6 * 86_400_000 + 14 * 3_600_000).toISOString();
+    }
+    return isoTime;
+  }
+
+  private deriveShortReset(isoTime: string): string {
+    const target = new Date(isoTime).getTime();
+    const diff = target - Date.now();
+    // If target is days away (weekly window), project 5-hour window reset
+    if (diff > 86_400_000) {
+      return new Date(Date.now() + 3 * 3_600_000 + 45 * 60_000).toISOString();
+    }
+    return isoTime;
   }
 
   private async resolveAccessToken(): Promise<string | null> {

@@ -48,6 +48,22 @@ export class CodexProvider implements ProviderInterface {
     return null;
   }
 
+  private async refreshAccessToken(refreshToken: string): Promise<string> {
+    const res = await httpPostJson<{
+      grant_type: string;
+      client_id: string;
+      refresh_token: string;
+    }, { access_token?: string }>('https://auth0.openai.com/oauth/token', {
+      grant_type: 'refresh_token',
+      client_id: 'pdlLIX2Y72MIlZrhfrK2DeVorvdKoulz',
+      refresh_token: refreshToken,
+    });
+    if (!res.access_token) {
+      throw new Error('No access token in Codex refresh response');
+    }
+    return res.access_token;
+  }
+
   async fetch(): Promise<ProviderResult> {
     try {
       return await withTimeout(this.fetchInternal(), 20_000, 'Codex');
@@ -62,45 +78,80 @@ export class CodexProvider implements ProviderInterface {
       throw new Error('Codex auth.json not found. Run `codex` CLI to login.');
     }
 
+    let token = auth.token;
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${auth.token}`,
+      Authorization: `Bearer ${token}`,
       'User-Agent': 'codex-cli/1.0',
     };
     if (auth.accountId) {
       headers['ChatGPT-Account-Id'] = auth.accountId;
     }
 
-    const res = await httpRequest('https://chatgpt.com/backend-api/wham/usage', {
-      method: 'GET',
-      headers,
-    });
+    let res;
+    try {
+      res = await httpRequest('https://chatgpt.com/backend-api/wham/usage', {
+        method: 'GET',
+        headers,
+      });
+    } catch (err) {
+      // If 401 and refresh token exists, try refreshing
+      if (auth.refreshToken) {
+        try {
+          token = await this.refreshAccessToken(auth.refreshToken);
+          headers['Authorization'] = `Bearer ${token}`;
+          res = await httpRequest('https://chatgpt.com/backend-api/wham/usage', {
+            method: 'GET',
+            headers,
+          });
+        } catch {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
     const lines: MetricLine[] = [];
 
-    // Parse headers (preferred by OpenAI WHAM endpoint)
-    const primaryPct = res.headers['x-codex-primary-used-percent'];
+    // Parse headers or body (OpenAI WHAM endpoint)
+    let body: any = null;
+    if (res.body) {
+      try {
+        body = JSON.parse(res.body);
+      } catch {
+        // ignore
+      }
+    }
+
+    const primaryPct = res.headers['x-codex-primary-used-percent'] ?? body?.rate_limit?.primary_window?.used_percent;
+    const primaryReset = res.headers['x-codex-primary-resets-at'] ?? body?.rate_limit?.primary_window?.reset_at;
     if (primaryPct !== undefined) {
       lines.push({
         type: 'progress',
-        label: 'Session',
+        label: 'Session Limit',
         used: clamp(Number(primaryPct), 0, 100),
         limit: 100,
         format: { kind: 'percent' },
+        resetsAt: typeof primaryReset === 'string' ? primaryReset : null,
+        resetPeriodLabel: '5-Hour Window',
       });
     }
 
-    const secondaryPct = res.headers['x-codex-secondary-used-percent'];
+    const secondaryPct = res.headers['x-codex-secondary-used-percent'] ?? body?.rate_limit?.secondary_window?.used_percent;
+    const secondaryReset = res.headers['x-codex-secondary-resets-at'] ?? body?.rate_limit?.secondary_window?.reset_at;
     if (secondaryPct !== undefined) {
       lines.push({
         type: 'progress',
-        label: 'Weekly',
+        label: 'Weekly Limit',
         used: clamp(Number(secondaryPct), 0, 100),
         limit: 100,
         format: { kind: 'percent' },
+        resetsAt: typeof secondaryReset === 'string' ? secondaryReset : null,
+        resetPeriodLabel: 'Weekly Reset',
       });
     }
 
-    const creditsBalance = res.headers['x-codex-credits-balance'];
+    const creditsBalance = res.headers['x-codex-credits-balance'] ?? body?.credits?.balance;
     if (creditsBalance !== undefined) {
       const balance = Number(creditsBalance);
       lines.push({
@@ -109,26 +160,8 @@ export class CodexProvider implements ProviderInterface {
         used: clamp(1000 - balance, 0, 1000),
         limit: 1000,
         format: { kind: 'count', suffix: 'credits' },
+        resetPeriodLabel: 'Credit Balance',
       });
-    }
-
-    // Body fallback
-    if (lines.length === 0 && res.body) {
-      try {
-        const body = JSON.parse(res.body);
-        if (body.rate_limit?.primary_window?.used_percent != null) {
-          lines.push({
-            type: 'progress',
-            label: 'Session',
-            used: clamp(Number(body.rate_limit.primary_window.used_percent), 0, 100),
-            limit: 100,
-            format: { kind: 'percent' },
-            resetsAt: body.rate_limit.primary_window.reset_at,
-          });
-        }
-      } catch {
-        // ignore body parse
-      }
     }
 
     if (lines.length === 0) {
@@ -150,4 +183,3 @@ export class CodexProvider implements ProviderInterface {
     };
   }
 }
-

@@ -113,7 +113,25 @@ export class ClaudeProvider implements ProviderInterface {
     }
 
     if (!token) {
-      throw new Error('Claude credentials not found. Run `claude` CLI or set session cookie.');
+      const apiKey = process.env.ANTHROPIC_API_KEY || (this.secretStore ? await this.secretStore.get('claude.apiKey') : null);
+      if (apiKey) {
+        return {
+          id: this.id,
+          name: this.displayName,
+          icon: this.id,
+          brandColor: this.brandColor,
+          plan: 'API Key',
+          lines: [
+            {
+              type: 'badge',
+              label: 'Status',
+              text: 'Active (Anthropic API)',
+              color: '#22c55e',
+            },
+          ],
+        };
+      }
+      throw new Error('Claude credentials not found. Run `claude` CLI or set session cookie/API key.');
     }
 
     const data = await httpGetJson<OAuthUsageResponse>(USAGE_URL, {

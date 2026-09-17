@@ -1,117 +1,158 @@
-# TokenLens — AI Usage & Cost Tracker
+# 🔭 TokenLens — All-in-One AI Usage, Quota & Cost Intelligence
 
-> **"See the true cost and impact of every AI model you use — in one place."**
+<p align="center">
+  <img src="resources/icon.png" width="100" alt="TokenLens Icon" />
+</p>
 
-TokenLens is a VS Code extension that tracks your AI spending, token usage, quota, and ROI across all major AI coding tools — all 100% locally, with no data leaving your machine.
+<p align="center">
+  <strong>"See the true cost, quota limits, and engineering impact of every AI model you use — in one place."</strong>
+</p>
 
-## Features
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=tokenlens.tokenlens"><img src="https://img.shields.io/badge/VS%20Code-v1.90+-007ACC?logo=visualstudiocode&logoColor=white" alt="VS Code Version" /></a>
+  <a href="#privacy"><img src="https://img.shields.io/badge/Privacy-100%25%20Local-22c55e?logo=shield&logoColor=white" alt="100% Local" /></a>
+  <a href="#currency"><img src="https://img.shields.io/badge/Currency-USD%20%7C%20BDT%20%7C%20EUR%20%7C%20GBP%20%7C%20INR%20%7C%20JPY-6D5DF6" alt="Currencies" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
+</p>
 
-### 🔍 9 Provider Support
-| Provider | What's tracked |
-|----------|---------------|
-| **Claude** | Session/Weekly quota %, OAuth auto-refresh |
-| **Cursor** | Plan usage $, billing reset date (SQLite) |
-| **GitHub Copilot** | Chat, inline suggestion, premium quotas |
-| **OpenAI Codex** | Session/Weekly usage % |
-| **Windsurf** | Prompt & Flex credits |
-| **Antigravity** | Gemini/Claude model quota groups |
-| **Ollama** | Local model count, running models |
-| **DeepSeek** | API balance, monthly spend |
-| **Mistral** | Billing spend or Vibe plan % |
+---
 
-### 📊 Local Log Parsing
-- Parses Claude Code, Codex CLI, and Grok session JSONL logs
-- Per-session, per-model, per-provider token breakdown
-- Trend chart (hourly or daily)
+## 📸 Screenshots & Live Previews
 
-### 💰 Budget Alerts (Exclusive)
-- Set a monthly budget (default: $20)
-- Get notified at **75%**, **90%**, **95%** (Panic Mode), and **100%**
-- Status bar color changes: green → yellow → orange → red
+### 1. Interactive AI Quotas & Cost Intelligence Dashboard
+Track your real-time spend, session count, prompt cache hit rate %, and multi-window quota meters across all active AI coding tools:
 
-### 🚀 AI ROI Calculator (Exclusive)
-- *"This month: $18 spent → ~34 hours saved → $1,700 equivalent"*
-- Configurable hourly rate
-- Per-session breakdown
+<p align="center">
+  <img src="resources/screenshots/dashboard.png" width="850" alt="TokenLens Interactive Dashboard" />
+</p>
 
-### 🏆 Model Leaderboard (Exclusive)
-- Ranks models by cost, tokens, and cost-per-session
-- 🥇🥈🥉 medals for top 3
+### 2. Multi-Window Quota Tracking & Live Reset Countdowns (Antigravity, Codex, Cursor)
+Monitor your exact remaining quota pools for Gemini Models (Weekly & 5-Hour limits), Claude/GPT models, and reset countdowns in real-time:
 
-### 📤 One-Click Share Card (Exclusive)
-- Export a beautiful PNG summary of your monthly stats
-- Perfect for Twitter/X, LinkedIn
+<p align="center">
+  <img src="resources/screenshots/antigravity_quota.png" width="550" alt="Antigravity Live Multi-Window Quota Monitor" />
+</p>
 
-### 🔒 100% Local
-- No API calls for your code or prompts
-- All data stays on your machine
-- Shield badge in Activity Bar
+---
 
-## Installation
+## 🌟 Why TokenLens?
 
-1. Search for "TokenLens" in the VS Code Marketplace
-2. Or install from VSIX: `code --install-extension tokenlens-0.1.0.vsix`
+Developers today use multiple AI tools concurrently — **Google Antigravity**, **OpenAI Codex**, **Cursor**, **Claude Code**, **Windsurf**, **GitHub Copilot**, **Ollama**, and **DeepSeek**. Managing their rate limits, prompt caching, unexpected credit exhaustion, and costs has been painful and fragmented.
 
-## Setup
+**TokenLens brings everything into one unified, ultra-fast, and private VS Code extension:**
 
-### Claude
-TokenLens auto-reads `~/.claude/.credentials.json` (Claude Code CLI). No setup needed if you use Claude Code.
+- ⏱️ **Live Multi-Window Rate Limits & Quota Pools:** Weekly and 5-hour limit meters with countdown timers.
+- ⚡ **Multi-Provider Compact Status Bar:** Displays all active in-use AI providers simultaneously (e.g. `🔭 AG 45% · Codex 21%`) with rich hover tooltips.
+- 🌐 **Global Multi-Currency Conversion:** Instantly convert usage and spend into **USD ($), BDT (৳), EUR (€), INR (₹), GBP (£), JPY (¥), CAD, AUD**.
+- 💡 **AI Cost Optimization Advisor:** Actionable suggestions to downscale routine tasks to mini models and save up to 65%.
+- 🚀 **Prompt Cache Analyzer:** Real-time analysis of cached vs uncached tokens, hit rate %, and dollar savings.
+- 📈 **Interactive Trend Analytics & Model Leaderboard:** Interactive cost charts and usage split by model, provider, and project workspace.
+- 💰 **Smart Budget Guardrails:** Custom monthly budget alerts at 75%, 90%, 95% (Panic Mode), and 100%.
+- 🔒 **100% Local & Zero Telemetry:** Credential decoding and database queries run entirely on your local machine.
 
-### Cursor
-TokenLens reads from Cursor's SQLite database automatically when Cursor is installed.
+---
 
-### GitHub Copilot
-Uses VS Code's built-in GitHub authentication. No setup needed.
+## 🤖 Supported Providers (11 Providers)
 
-### OpenAI Codex
-Auto-reads `~/.codex/auth.json`.
+| Provider | Mechanism & Strategies | Quotas & Windows Monitored |
+| :--- | :--- | :--- |
+| **Google Antigravity** | Language Server Port Scan (`lsof`), `GetQuotaSummary`, `GetUserStatus`, SQLite Protobuf decode (`state.vscdb`), Cloud Code API | Gemini Models (Weekly & 5h limits) + Claude/GPT Models with live reset countdowns |
+| **OpenAI Codex** | Local session logs (`~/.codex/sessions/`), CLI auth token | Session quota %, token breakdown, lifetime spend |
+| **Cursor** | SQLite DB (`state.vscdb`) token extraction, token refresh API, `DashboardService/GetCurrentPeriodUsage` | Included usage %, Auto requests %, Fast requests, Plan spend $, Billing cycle reset |
+| **Windsurf** | SQLite `state.vscdb`, Dynamic listening port probe (`lsof`), `LanguageServerService/GetUserStatus` | Available Prompt Credits, Used Prompt Credits, Flex Credits |
+| **Claude Code** | Credentials file (`~/.claude/credentials.json`), Session cookie, OAuth refresh | 5-Hour Session Window, 7-Day Weekly Window, Sonnet/Opus limits, Extra usage |
+| **GitHub Copilot** | VS Code GitHub Authentication & Copilot quota endpoints | Premium request allowance, Chat suggestions, Monthly renewal date |
+| **DeepSeek** | API Key balance endpoint (`api.deepseek.com/user/balance`) | Account balance in USD/CNY, Granted balance, Top-up balance |
+| **Mistral** | Admin Cookie / API key (`console.mistral.ai/api/billing/usage`) | Usage credits, plan tiers |
+| **Ollama (Local)** | Local daemon API (`localhost:11434/api/version`, `/api/tags`, `/api/ps`) | Server version, Installed model count, Running models, VRAM usage |
+| **OpenRouter** | API key endpoint (`openrouter.ai/api/v1/auth/key`, `/api/v1/credits`) | Credit limit, Total USD usage, Rate limits (req/s) |
+| **Groq** | API key balance & rate limit headers | Request quota, token rate limits |
 
-### DeepSeek
-Set your API key: `TokenLens: Set DeepSeek API Key`
+---
 
-### Mistral
-Set your admin cookie: `TokenLens: Set Mistral Admin Cookie`
+## ⚡ Multi-Provider Sleek Status Bar
 
-## Commands
+Instead of cluttering your screen with giant single-provider bars, TokenLens features an **ultra-compact multi-provider status bar**:
 
-| Command | Description |
-|---------|-------------|
-| `TokenLens: Refresh All Providers` | Manually refresh all data |
-| `TokenLens: Set Monthly Budget` | Configure budget alert threshold |
-| `TokenLens: Set Hourly Rate for ROI` | Configure ROI calculation |
-| `TokenLens: Detect Local Sources` | Auto-detect JSONL log paths |
-| `TokenLens: Select Status Bar Provider` | Pin a provider to status bar |
-| `TokenLens: Clear All Secrets` | Remove all stored credentials |
-
-## Settings
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `tokenlens.refreshInterval` | `5m` | Auto-refresh interval |
-| `tokenlens.budget.monthly` | `20` | Monthly budget in USD |
-| `tokenlens.roi.hourlyRate` | `35` | Hourly rate for ROI ($) |
-| `tokenlens.display.currency` | `USD` | Display currency |
-| `tokenlens.display.defaultRange` | `thisWeek` | Default time range |
-| `tokenlens.display.statusBarStyle` | `blocks` | Status bar style (blocks/percent/minimal) |
-
-## Privacy
-
-TokenLens is **100% local**. It:
-- ✅ Reads local credential files (OAuth tokens) already stored by AI tools
-- ✅ Makes direct API calls to provider APIs (same as the AI tools themselves)
-- ❌ Never sends your code, prompts, or usage data to any third party
-- ❌ Has no telemetry or analytics
-
-## Building from Source
-
-```bash
-git clone https://github.com/ta-shanto/tokenlens
-cd TokenLens
-npm install
-npm run build
+```
+🔭 AG 45% · Codex 21% · Claude 18%
 ```
 
-## License
+- **Smart Multi-Display:** Automatically displays all currently active tools side-by-side.
+- **Rich Hover Tooltip:** Hover over the status bar item to view a complete breakdown of each model's quota, countdown timers, monthly budget progress, and quick action buttons.
+- **One-Click Dashboard Access:** Click the status bar anytime to open the full interactive dashboard.
 
-MIT
+---
 
+## ⌨️ Keyboard Shortcuts & Commands
+
+| Command | Shortcut | Description |
+| :--- | :--- | :--- |
+| `TokenLens: Refresh All Providers` | <kbd>R</kbd> *(inside dashboard)* | Re-queries all language servers, APIs, and local logs |
+| `TokenLens: Open Dashboard` | — | Focuses and opens the TokenLens AI Dashboard |
+| `TokenLens: Select Status Bar Provider` | — | Pin a specific provider or set to Auto (all active) |
+| `TokenLens: Set Monthly Budget` | — | Configure your monthly spending budget in USD |
+| `TokenLens: Set Hourly Rate for ROI` | — | Set your developer hourly rate for ROI savings math |
+| `TokenLens: Detect Local Sources` | — | Auto-scans local directories for Claude, Codex, Grok, and Cline logs |
+| `TokenLens: Export CSV / JSON` | — | Export full audit logs and usage summaries |
+
+---
+
+## ⚙️ Configuration Options
+
+Customize TokenLens in VS Code Settings (`Cmd+,` or `Ctrl+,`):
+
+```jsonc
+{
+  // Auto-refresh interval (e.g. 1m, 5m, 15m, 30m)
+  "tokenlens.refreshInterval": "5m",
+
+  // Monthly budget in USD for alert tracking
+  "tokenlens.budget.monthly": 20,
+  "tokenlens.budget.alertEnabled": true,
+
+  // Preferred display currency (USD, BDT, EUR, GBP, INR, JPY, CAD, AUD)
+  "tokenlens.display.currency": "USD",
+
+  // Status bar display style: "compact" | "blocks" | "percent" | "minimal"
+  "tokenlens.display.statusBarStyle": "compact",
+
+  // Pin a specific provider to the status bar (leave empty for auto multi-provider)
+  "tokenlens.display.statusBarProvider": "",
+
+  // Hourly rate for ROI calculation ($)
+  "tokenlens.roi.hourlyRate": 35,
+
+  // Ollama local server URL
+  "tokenlens.providers.ollama.url": "http://localhost:11434"
+}
+```
+
+---
+
+## 🔒 Privacy Guarantee
+
+TokenLens is built from the ground up for security and privacy:
+- ✅ **100% Local Processing:** Runs on your machine; no code, prompts, or proprietary data ever leaves your device.
+- ✅ **Secure Secret Storage:** API keys and credentials are saved using VS Code's encrypted SecretStorage.
+- ✅ **Zero Telemetry:** No third-party trackers, analytics, or external logging servers.
+
+---
+
+## 🛠️ Building & Packaging from Source
+
+```bash
+git clone https://github.com/ta-shanto/TokenLens.git
+cd TokenLens
+pnpm install
+pnpm run compile
+pnpm run build
+pnpm test
+pnpm run package:vsix
+```
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. Created with ❤️ for AI engineers and developers worldwide.

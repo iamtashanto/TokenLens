@@ -2,17 +2,14 @@ import * as vscode from 'vscode';
 import type { ProviderResult, BudgetState } from '../types/index.js';
 import type { ProviderRegistry } from '../providers/registry.js';
 import {
-  renderStatusBarText,
-  getProviderPercent,
+  renderMultiStatusBarText,
+  getPrimaryPercent,
   getStatusBarColor,
   renderTooltip,
+  StatusBarStyle,
+  PROVIDER_SHORT_NAMES,
 } from './StatusBarRenderer.js';
 
-/**
- * Manages the single status bar item for TokenLens.
- * Uses usagedock's approach: one item, user picks which provider to show.
- * Color reflects budget alert level (takes priority over provider usage).
- */
 export class StatusBarController implements vscode.Disposable {
   private readonly item: vscode.StatusBarItem;
   private results: ProviderResult[] = [];
@@ -30,11 +27,11 @@ export class StatusBarController implements vscode.Disposable {
     private readonly registry: ProviderRegistry,
   ) {
     // Create right-aligned status bar item
-    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-    this.item.command = 'tokenlens.cycleStatusBar';
+    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    this.item.command = 'tokenlens.openDashboard';
     this.item.name = 'TokenLens';
-    this.item.text = '$(eye) TokenLens';
-    this.item.tooltip = 'Click to select provider or open dashboard';
+    this.item.text = '$(telescope) TokenLens';
+    this.item.tooltip = 'Click to open TokenLens AI Dashboard';
     this.item.show();
 
     // React to config changes
@@ -54,51 +51,52 @@ export class StatusBarController implements vscode.Disposable {
     this.render();
   }
 
-  /** Get the selected provider ID from config, or auto-select */
-  private getSelectedProviderId(): string | undefined {
+  /** Get active providers (with progress lines / valid data) */
+  private getActiveResults(): ProviderResult[] {
     const config = vscode.workspace.getConfiguration('tokenlens');
     const pinned = config.get<string>('display.statusBarProvider', '');
 
-    if (pinned && this.results.some((r) => r.id === pinned)) {
-      return pinned;
+    if (pinned) {
+      const found = this.results.find((r) => r.id === pinned);
+      if (found) return [found];
     }
 
-    // Auto-select: first provider with progress lines and no error
-    const connected = this.results.find((r) => !r.error && r.lines.some((l) => l.type === 'progress'));
-    if (connected) return connected.id;
+    const active = this.results.filter(
+      (r) =>
+        !r.error &&
+        r.lines.some(
+          (l) =>
+            l.type === 'progress' ||
+            (l.type === 'badge' &&
+              !l.text.toLowerCase().includes('idle') &&
+              !l.text.toLowerCase().includes('not installed')),
+        ),
+    );
 
-    // Fallback: first provider overall
-    return this.results[0]?.id;
+    return active.length > 0 ? active : this.results.slice(0, 1);
   }
 
   /** Re-render the status bar item */
   render(): void {
     if (this.results.length === 0) {
-      this.item.text = '$(eye) TokenLens';
+      this.item.text = '$(telescope) TokenLens';
       this.item.backgroundColor = undefined;
       return;
     }
 
-    const selectedId = this.getSelectedProviderId();
-    const selected = this.results.find((r) => r.id === selectedId) ?? this.results[0];
-
-    if (!selected) return;
-
+    const activeResults = this.getActiveResults();
     const style = vscode.workspace
       .getConfiguration('tokenlens')
-      .get<'blocks' | 'percent' | 'minimal'>('display.statusBarStyle', 'blocks');
+      .get<StatusBarStyle>('display.statusBarStyle', 'compact');
 
-    // Status bar text: $(tokenlens-claude) Claude ████████░░ 82%
-    const iconId = `tokenlens-${selected.id}`;
-    const barText = selected.error ? 'Error' : renderStatusBarText(selected, style);
-    this.item.text = `$(${iconId}) ${selected.name} ${barText}`;
+    // Render compact multi-provider status bar text
+    this.item.text = renderMultiStatusBarText(activeResults, style);
 
-    // Color: budget alert takes priority
-    const pct = getProviderPercent(selected);
-    this.item.backgroundColor = getStatusBarColor(pct, this.budget.alertLevel);
+    // Color: gentle warning/error only when genuinely needed
+    this.item.backgroundColor = getStatusBarColor(activeResults, this.budget.alertLevel);
 
-    // Tooltip
-    this.item.tooltip = renderTooltip(selected, this.results, this.budget);
+    // Tooltip: comprehensive summary for all providers
+    this.item.tooltip = renderTooltip(this.results, this.budget);
   }
 
   /** Show QuickPick to let user select which provider to pin */
@@ -110,15 +108,16 @@ export class StatusBarController implements vscode.Disposable {
 
     const items: vscode.QuickPickItem[] = [
       {
-        label: '$(refresh) Auto (select best)',
-        description: 'Automatically select the first connected provider',
+        label: '$(telescope) Auto (Show all active providers)',
+        description: 'Displays all active providers side-by-side in the status bar',
         detail: '',
       },
       ...this.results.map((r) => {
-        const pct = getProviderPercent(r);
+        const pct = getPrimaryPercent(r);
         const pctStr = pct !== undefined ? ` — ${Math.round(pct)}%` : '';
+        const short = PROVIDER_SHORT_NAMES[r.id] ?? r.name;
         return {
-          label: `$(tokenlens-${r.id}) ${r.name}${pctStr}`,
+          label: `$(tokenlens-${r.id}) ${r.name} [${short}]${pctStr}`,
           description: r.error ? `Error: ${r.error}` : r.plan ?? '',
           detail: r.id,
         };
@@ -127,7 +126,7 @@ export class StatusBarController implements vscode.Disposable {
 
     const picked = await vscode.window.showQuickPick(items, {
       title: 'TokenLens: Select Status Bar Provider',
-      placeHolder: 'Choose which provider to display in the status bar',
+      placeHolder: 'Choose which provider(s) to display in the status bar',
     });
 
     if (!picked) return;
@@ -151,4 +150,3 @@ export class StatusBarController implements vscode.Disposable {
     for (const d of this.disposables) d.dispose();
   }
 }
-
