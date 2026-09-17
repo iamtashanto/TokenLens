@@ -247,6 +247,51 @@ body {
   color: #ffffff;
 }
 
+/* Provider Header & Filter Row */
+.tl-provider-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.tl-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+.tl-filter-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.tl-filter-pill {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.15s;
+}
+
+.tl-filter-pill:hover {
+  opacity: 1;
+}
+
+.tl-filter-pill.active {
+  background-color: rgba(109, 93, 246, 0.2);
+  border-color: var(--accent);
+  color: #c4b5fd;
+  opacity: 1;
+  font-weight: 600;
+}
+
 /* Provider Cards */
 .tl-provider-list {
   display: flex;

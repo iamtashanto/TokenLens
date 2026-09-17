@@ -226,6 +226,26 @@ export default function App() {
       ? `${currency.symbol}${Math.round(totalCostConverted).toLocaleString()}`
       : `${currency.symbol}${totalCostConverted.toFixed(2)}`;
 
+  const [filterMode, setFilterMode] = useState<'active' | 'all'>('active');
+
+  const isConnected = (p: ProviderResult) =>
+    !p.error &&
+    p.lines.some(
+      (l) =>
+        l.type === 'progress' ||
+        (l.type === 'badge' &&
+          !l.text.toLowerCase().includes('not installed') &&
+          !l.text.toLowerCase().includes('idle') &&
+          !l.text.toLowerCase().includes('unconfigured')),
+    );
+
+  const activeProviders = providers.filter(isConnected);
+  const inactiveProviders = providers.filter((p) => !isConnected(p));
+  const displayedProviders =
+    filterMode === 'active' && activeProviders.length > 0
+      ? activeProviders
+      : [...activeProviders, ...inactiveProviders];
+
   return (
     <div className="tokenlens-app">
       {/* Top Header */}
@@ -316,24 +336,45 @@ export default function App() {
               </div>
             </div>
 
-            {/* Provider Rate Limits & Reset Countdowns */}
+            {/* Provider Rate Limits & Reset Countdowns Header */}
+            <div className="tl-provider-header-row">
+              <span className="tl-section-title">AI Quotas & Rate Limits</span>
+              {activeProviders.length > 0 && inactiveProviders.length > 0 && (
+                <div className="tl-filter-pills">
+                  <button
+                    className={`tl-filter-pill${filterMode === 'active' ? ' active' : ''}`}
+                    onClick={() => setFilterMode('active')}
+                  >
+                    Active ({activeProviders.length})
+                  </button>
+                  <button
+                    className={`tl-filter-pill${filterMode === 'all' ? ' active' : ''}`}
+                    onClick={() => setFilterMode('all')}
+                  >
+                    All ({providers.length})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Provider Cards */}
             {isLoading && providers.length === 0 ? (
               <div className="tl-loading-state">
                 <div className="tl-skeleton" style={{ height: 90, marginBottom: 8 }} />
                 <div className="tl-skeleton" style={{ height: 90, marginBottom: 8 }} />
                 <div className="tl-skeleton" style={{ height: 90 }} />
               </div>
-            ) : providers.length === 0 ? (
+            ) : displayedProviders.length === 0 ? (
               <div className="tl-empty-state">
                 <span className="tl-empty-icon">🔭</span>
-                <p>No AI providers connected.</p>
-                <button className="tl-empty-cta" onClick={refreshAll}>
-                  Refresh Now
+                <p>No active AI providers detected.</p>
+                <button className="tl-empty-cta" onClick={() => setFilterMode('all')}>
+                  Show All Providers ({providers.length})
                 </button>
               </div>
             ) : (
               <div className="tl-provider-list">
-                {providers.map((result) => (
+                {displayedProviders.map((result) => (
                   <ProviderCard
                     key={result.id}
                     result={result}

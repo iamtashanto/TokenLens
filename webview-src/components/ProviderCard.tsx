@@ -29,7 +29,7 @@ function timeUntilReset(isoStr: string | null | undefined): string | null {
 
 function formatMetricValue(line: ProgressLine, currency?: DisplayCurrencyState): string {
   if (line.format.kind === 'percent') {
-    return `${Math.round(line.used)}%`;
+    return `${Math.round(line.used)}% used`;
   }
   if (line.format.kind === 'dollars') {
     const sym = currency?.symbol ?? '$';
@@ -51,7 +51,7 @@ export default function ProviderCard({ result, currency, refreshing }: ProviderC
   const textLines = lines.filter((l): l is TextLine => l.type === 'text');
   const badgeLines = lines.filter((l): l is BadgeLine => l.type === 'badge');
 
-  const mainResetCountdown = timeUntilReset(quotaSummary?.primaryResetIso);
+  const topResetCountdown = timeUntilReset(quotaSummary?.primaryResetIso);
 
   return (
     <div className={`tl-provider-card${refreshing ? ' refreshing' : ''}`}>
@@ -67,8 +67,8 @@ export default function ProviderCard({ result, currency, refreshing }: ProviderC
           {plan && <span className="tl-plan-badge">{plan}</span>}
         </div>
         <div className="tl-card-top-right">
-          {mainResetCountdown && (
-            <span className="tl-reset-pill">{mainResetCountdown}</span>
+          {topResetCountdown && (
+            <span className="tl-reset-pill">{topResetCountdown}</span>
           )}
           {refreshing && <span className="tl-refresh-spinner">Refreshing...</span>}
         </div>
@@ -94,18 +94,17 @@ export default function ProviderCard({ result, currency, refreshing }: ProviderC
                   ? (line.used / line.limit) * 100
                   : 0;
             const barColor = getProgressColor(pct);
-            const lineResetText = timeUntilReset(line.resetsAt);
+            const lineResetText = timeUntilReset(line.resetsAt) || (line.resetPeriodLabel ? `⏱️ ${line.resetPeriodLabel}` : null);
 
             return (
               <div key={idx} className="tl-metric-progress">
                 <div className="tl-metric-label-row">
                   <div className="tl-label-with-tag">
                     <span className="tl-metric-label">{line.label}</span>
-                    {line.resetPeriodLabel && (
-                      <span className="tl-period-tag">{line.resetPeriodLabel}</span>
-                    )}
                   </div>
-                  <strong className="tl-metric-value">{formatMetricValue(line, currency)}</strong>
+                  <div className="tl-metric-right-col">
+                    <strong className="tl-metric-value">{formatMetricValue(line, currency)}</strong>
+                  </div>
                 </div>
                 <div className="tl-progress-bar-bg">
                   <div
@@ -116,7 +115,7 @@ export default function ProviderCard({ result, currency, refreshing }: ProviderC
                     }}
                   />
                 </div>
-                {lineResetText && !mainResetCountdown && (
+                {lineResetText && (
                   <div className="tl-reset-text">{lineResetText}</div>
                 )}
               </div>
