@@ -1,6 +1,6 @@
 {
-  "name": "tokenlens",
-  "displayName": "TokenLens — AI Usage & Cost Tracker",
+  "name": "tokenlens-pro",
+  "displayName": "TokenLens Pro — AI Usage & Cost Tracker",
   "description": "See the true cost and impact of every AI model you use — in one place. Tracks Claude, Cursor, Copilot, Codex, Windsurf, Ollama, DeepSeek, Mistral, and Antigravity.",
   "version": "0.1.0",
   "publisher": "iamtashanto",
