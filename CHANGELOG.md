@@ -2,6 +2,13 @@
 
 All notable changes to TokenLens will be documented in this file.
 
+## [0.1.1] - 2026-09-17
+
+### Fixed & Improved
+- **GitHub Copilot Enhancements:** Multi-scope authentication session resolution (`copilot`, `read:user`, `user:email`, `repo`), multi-source local token discovery (`gh` CLI, environment variables, VS Code Secret Storage), and endpoint cascade verification.
+- Added `TokenLens: Set GitHub / Copilot Token (Optional)` command (`tokenlens.setGitHubToken`).
+- Refined multi-provider status bar indicators and circular gauge progress markers.
+
 ## [0.1.0] - 2026-09-17
 
 ### Added

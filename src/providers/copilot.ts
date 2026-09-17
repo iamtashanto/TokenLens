@@ -162,7 +162,7 @@ export class CopilotProvider implements ProviderInterface {
       };
     }
 
-    const headersList = [
+    const headersList: Record<string, string>[] = [
       {
         Authorization: `Bearer ${token}`,
         'Editor-Version': 'vscode/1.96.2',
