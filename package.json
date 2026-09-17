@@ -1,0 +1,394 @@
+{
+  "name": "tokenlens",
+  "displayName": "TokenLens — AI Usage & Cost Tracker",
+  "description": "See the true cost and impact of every AI model you use — in one place. Tracks Claude, Cursor, Copilot, Codex, Windsurf, Ollama, DeepSeek, Mistral, and Antigravity.",
+  "version": "0.1.0",
+  "publisher": "tokenlens",
+  "private": true,
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "keywords": [
+    "ai",
+    "token",
+    "tracker",
+    "copilot",
+    "claude",
+    "cursor",
+    "cost",
+    "usage",
+    "cline",
+    "budget",
+    "roi",
+    "codex",
+    "windsurf",
+    "ollama",
+    "deepseek",
+    "mistral"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tokenlens",
+          "title": "TokenLens",
+          "icon": "resources/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "tokenlens": [
+        {
+          "id": "tokenlens.dashboard",
+          "type": "webview",
+          "name": "Dashboard"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "tokenlens.refresh",
+        "title": "TokenLens: Refresh All Providers",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tokenlens.openSettings",
+        "title": "TokenLens: Open Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "tokenlens.detectSources",
+        "title": "TokenLens: Detect Local Sources",
+        "icon": "$(search)"
+      },
+      {
+        "command": "tokenlens.setBudget",
+        "title": "TokenLens: Set Monthly Budget"
+      },
+      {
+        "command": "tokenlens.setROIRate",
+        "title": "TokenLens: Set Hourly Rate for ROI"
+      },
+      {
+        "command": "tokenlens.cycleStatusBar",
+        "title": "TokenLens: Select Status Bar Provider"
+      },
+      {
+        "command": "tokenlens.setClaudeToken",
+        "title": "TokenLens: Set Claude Session Cookie"
+      },
+      {
+        "command": "tokenlens.setDeepSeekKey",
+        "title": "TokenLens: Set DeepSeek API Key"
+      },
+      {
+        "command": "tokenlens.setMistralCookie",
+        "title": "TokenLens: Set Mistral Admin Cookie"
+      },
+      {
+        "command": "tokenlens.setAntigravityToken",
+        "title": "TokenLens: Set Antigravity OAuth Token"
+      },
+      {
+        "command": "tokenlens.clearSecrets",
+        "title": "TokenLens: Clear All Secrets"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tokenlens.refresh",
+          "when": "view == tokenlens.dashboard",
+          "group": "navigation"
+        },
+        {
+          "command": "tokenlens.openSettings",
+          "when": "view == tokenlens.dashboard",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "TokenLens",
+      "properties": {
+        "tokenlens.refreshInterval": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "1m",
+            "2m",
+            "5m",
+            "15m",
+            "30m"
+          ],
+          "default": "5m",
+          "description": "How often to automatically refresh provider data."
+        },
+        "tokenlens.providers.claude.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Claude usage tracking."
+        },
+        "tokenlens.providers.claude.source": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "oauth",
+            "cookie"
+          ],
+          "default": "auto",
+          "description": "Claude auth source: auto tries OAuth then cookie."
+        },
+        "tokenlens.providers.cursor.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Cursor usage tracking (requires Cursor installed)."
+        },
+        "tokenlens.providers.copilot.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable GitHub Copilot quota tracking."
+        },
+        "tokenlens.providers.codex.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable OpenAI Codex usage tracking."
+        },
+        "tokenlens.providers.windsurf.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Windsurf usage tracking."
+        },
+        "tokenlens.providers.ollama.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Ollama usage tracking."
+        },
+        "tokenlens.providers.ollama.url": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Ollama server URL."
+        },
+        "tokenlens.providers.antigravity.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Antigravity (Google) usage tracking."
+        },
+        "tokenlens.providers.antigravity.source": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ls",
+            "oauth"
+          ],
+          "default": "auto",
+          "description": "Antigravity auth source: auto tries LS probe then OAuth."
+        },
+        "tokenlens.providers.deepseek.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable DeepSeek usage tracking."
+        },
+        "tokenlens.providers.mistral.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Mistral usage tracking."
+        },
+        "tokenlens.providers.mistral.metric": {
+          "type": "string",
+          "enum": [
+            "billing",
+            "vibe"
+          ],
+          "default": "billing",
+          "description": "Mistral metric to show: billing (monthly spend) or vibe (plan %)."
+        },
+        "tokenlens.localSources.claude": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Claude local usage logs directory (e.g. ~/.claude/projects). Leave empty to auto-detect."
+        },
+        "tokenlens.localSources.codex": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Codex local session logs directory. Leave empty to auto-detect."
+        },
+        "tokenlens.localSources.grok": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Grok local session logs directory. Leave empty to auto-detect."
+        },
+        "tokenlens.budget.monthly": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "description": "Monthly AI spending budget in USD."
+        },
+        "tokenlens.budget.alertEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable budget alert notifications at 75%, 90%, and 100% of monthly budget."
+        },
+        "tokenlens.roi.hourlyRate": {
+          "type": "number",
+          "default": 35,
+          "minimum": 1,
+          "description": "Your hourly rate in USD for ROI calculation."
+        },
+        "tokenlens.roi.minutesPerInteraction": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Estimated minutes saved per AI interaction for ROI calculation."
+        },
+        "tokenlens.display.currency": {
+          "type": "string",
+          "default": "USD",
+          "description": "Display currency (3-letter ISO code, e.g. USD, EUR, GBP). Requires exchange rate data."
+        },
+        "tokenlens.display.defaultRange": {
+          "type": "string",
+          "enum": [
+            "today",
+            "yesterday",
+            "thisWeek",
+            "lastWeek",
+            "thisMonth",
+            "lastMonth"
+          ],
+          "default": "thisWeek",
+          "description": "Default time range for the dashboard."
+        },
+        "tokenlens.display.statusBarProvider": {
+          "type": "string",
+          "default": "",
+          "description": "Provider ID to pin in the status bar. Empty = auto-select first connected."
+        },
+        "tokenlens.display.statusBarStyle": {
+          "type": "string",
+          "enum": [
+            "blocks",
+            "percent",
+            "minimal"
+          ],
+          "default": "blocks",
+          "description": "Status bar progress display style."
+        },
+        "tokenlens.autoDetectLocalSources": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect local AI log file paths on startup."
+        },
+        "tokenlens.display.exchangeRates": {
+          "type": "object",
+          "default": {},
+          "description": "Manual exchange rate overrides (per-USD). e.g. { \"EUR\": 0.92 }"
+        }
+      }
+    },
+    "icons": {
+      "tokenlens-claude": {
+        "description": "Claude provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea01"
+        }
+      },
+      "tokenlens-cursor": {
+        "description": "Cursor provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea02"
+        }
+      },
+      "tokenlens-copilot": {
+        "description": "GitHub Copilot provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea03"
+        }
+      },
+      "tokenlens-codex": {
+        "description": "OpenAI Codex provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea04"
+        }
+      },
+      "tokenlens-deepseek": {
+        "description": "DeepSeek provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea05"
+        }
+      },
+      "tokenlens-antigravity": {
+        "description": "Antigravity provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea06"
+        }
+      },
+      "tokenlens-ollama": {
+        "description": "Ollama provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea07"
+        }
+      },
+      "tokenlens-windsurf": {
+        "description": "Windsurf provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea08"
+        }
+      },
+      "tokenlens-mistral": {
+        "description": "Mistral provider icon",
+        "default": {
+          "fontPath": "./resources/icons-font/tokenlens.woff2",
+          "fontCharacter": "\\ea09"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "node esbuild.config.mjs",
+    "build:webview": "vite build --config vite.config.webview.ts",
+    "compile": "tsc --noEmit",
+    "watch": "node esbuild.config.mjs --watch",
+    "watch:webview": "vite build --config vite.config.webview.ts --watch",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package:vsix": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "uplot": "^1.6.32",
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
